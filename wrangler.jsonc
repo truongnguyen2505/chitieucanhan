@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "so-thu-chi-ca-nhan",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-29",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "truongparker.io.vn/chitieucanhan", "zone_name": "truongparker.io.vn" },
+    { "pattern": "truongparker.io.vn/chitieucanhan/*", "zone_name": "truongparker.io.vn" }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  }
+}

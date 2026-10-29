@@ -63,3 +63,24 @@ Trong Cài đặt → Reset dữ liệu, popup yêu cầu xác nhận và có n�
 
 Đã kiểm tra thêm trên Wrangler cục bộ: HTML/JS/CSS tại /chitieucanhan/ trả 200; chuyển hướng dấu / cuối trả 308; đường dẫn ngoài phạm vi trả 404. Kiểm tra đóng gói wrangler deploy --dry-run đã đạt. Chưa deploy lên Cloudflare production.
 
+## Thêm vào màn hình chính (iOS / Android)
+
+Trong Tổng quan hoặc Cài đặt, chọn **Thêm vào màn hình chính** để xem hướng dẫn theo thiết bị:
+
+- **Android / Chrome:** chọn **Cài đặt ứng dụng** khi trình duyệt cho phép, hoặc menu **⋮ → Thêm vào màn hình chính / Cài đặt ứng dụng**.
+- **iPhone / iPad / Safari:** **Chia sẻ → Thêm vào Màn hình chính → Thêm**. Bật **Mở dưới dạng ứng dụng web** nếu có.
+- Nếu đang xem từ Zalo/Facebook, mở trang bằng Safari hoặc Chrome trước.
+
+Icon mở đúng đường dẫn `/chitieucanhan/` trong cửa sổ riêng. Manifest và mọi icon đều nằm dưới đường dẫn này; không dùng manifest/icon ở gốc domain. Nút cài đặt trực tiếp chỉ xuất hiện sau sự kiện `beforeinstallprompt`; iOS có hướng dẫn thao tác thủ công. Khi ứng dụng đang mở độc lập, lời mời cài đặt ở Tổng quan được ẩn.
+
+Cần HTTPS khi dùng trên điện thoại thật (production đã có HTTPS); localhost dùng để phát triển. Tính năng này không bổ sung service worker hay khả năng tải trang khi mất mạng. Việc lưu dữ liệu vẫn theo origin và vùng lưu trữ của trình duyệt/ứng dụng web. Nếu mở icon thấy sổ trống, xuất JSON từ trình duyệt đang có dữ liệu rồi khôi phục trong ứng dụng web.
+
+Các file liên quan: `src/install.js`, `src/InstallApp.vue`, `public/manifest.webmanifest`, `public/icons/`. Để tạo lại các PNG trên Windows: `powershell -ExecutionPolicy Bypass -File scripts/generate-icons.ps1`.
+
+Tham khảo: [Apple: thêm trang web vào màn hình chính](https://support.apple.com/vi-vn/guide/iphone/iphea86e5236/ios), [MDN: điều kiện cài đặt ứng dụng web](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
+
+### Tên riêng dưới icon
+
+Mỗi người có thể nhập **Tên dưới icon** trong **Thêm vào màn hình chính**, chọn **Lưu tên trước khi cài** rồi thực hiện cài đặt. Trang tải lại và tự mở tiếp hướng dẫn với tên đã chọn. Tên tối đa 40 ký tự; iOS cũng cho sửa tên ở màn hình xác nhận thêm icon. Tên của icon đã cài được hệ điều hành/trình duyệt quản lý, không bảo đảm đổi ngay khi sửa tên trên trang.
+
+Tên được giữ trong tham số `app_name` của đường dẫn mở ứng dụng và manifest riêng; `name`/`short_name` và tiêu đề Apple dùng cùng tên. Danh tính `id`, phạm vi `scope`, icon và dữ liệu sổ không thay đổi. Không lưu tên icon vào dữ liệu giao dịch. HTML/manifest có tên riêng dùng `Cache-Control: private, no-store` để không dùng nhầm tên giữa các đường dẫn. Vite dev, preview và Worker cục bộ đều hỗ trợ cách đặt tên này.

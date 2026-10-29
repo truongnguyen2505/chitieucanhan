@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle, UserRound } from 'lucide-vue-next';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle, UserRound, Smartphone } from 'lucide-vue-next';
 import { repository } from './repository';
+import InstallApp from './InstallApp.vue';
+import { createInstallManager } from './install.js';
 import { freshData, dateKey, cycleFor, money, uid, totals, validateData } from './domain';
 const clone = value => JSON.parse(JSON.stringify(value));
 const retry = () => window.location.reload();
@@ -11,10 +13,16 @@ const data = ref(freshData()), ready = ref(false), busy = ref(false), fatal = re
 const page = ref('dashboard'), offset = ref(0), anchor = ref(dateKey()), modal = ref(null), query = ref(''), filter = ref('all'), filterTag = ref(''), filterCategory = ref('');
 const analysisBy = ref('categories'), analysisType = ref('expense'), form = ref({}), formError = ref(''), fileInput = ref(null), cycleDay = ref(1);
 const profileName = ref(''), profileError = ref('');
+const installState = ref({});
+const installManager = createInstallManager(window, state => { installState.value = state; });
+installState.value = installManager.getState();
+onUnmounted(() => installManager.dispose());
+const requestInstall = () => installManager.install();
 const displayName = computed(()=>data.value.settings.displayName || 'Sổ của tôi');
 const avatarInitial = computed(()=>Array.from(data.value.settings.displayName || 'T')[0].toLocaleUpperCase('vi-VN'));
 const nav = [{id:'dashboard',label:'Tổng quan',icon:LayoutDashboard},{id:'transactions',label:'Giao dịch',icon:ArrowLeftRight},{id:'categories',label:'Danh mục & tag',icon:Shapes},{id:'settings',label:'Cài đặt',icon:Settings2}];
 const settingsActions = [
+ {id:'install',label:'Thêm vào màn hình chính',icon:Smartphone},
  {id:'profile',label:'Tên của bạn',icon:UserRound},
  {id:'cycle',label:'Chu kỳ tính thu chi',icon:CalendarDays},
  {id:'backup',label:'Sao lưu dữ liệu',icon:Download},
@@ -24,7 +32,7 @@ const settingsActions = [
 const modalTitle = computed(()=>{
  if(modal.value==='transaction')return data.value.transactions.some(t=>t.id===form.value.id)?'Sửa giao dịch':'Thêm giao dịch';
  if(modal.value==='delete')return 'Xóa '+form.value.name;
- return {profile:'Tên của bạn',cycle:'Chu kỳ tính thu chi',backup:'Sao lưu dữ liệu',restore:'Khôi phục dữ liệu',category:'Danh mục thu chi',tag:'Tag chi tiêu',import:'Xác nhận khôi phục dữ liệu',reset:'Xóa toàn bộ dữ liệu?',demo:'Khám phá sổ mẫu'}[modal.value]||'';
+ return {install:'Thêm vào màn hình chính',profile:'Tên của bạn',cycle:'Chu kỳ tính thu chi',backup:'Sao lưu dữ liệu',restore:'Khôi phục dữ liệu',category:'Danh mục thu chi',tag:'Tag chi tiêu',import:'Xác nhận khôi phục dữ liệu',reset:'Xóa toàn bộ dữ liệu?',demo:'Khám phá sổ mẫu'}[modal.value]||'';
 });
 const period = computed(()=>cycleFor(anchor.value, data.value.settings.startDay, offset.value));
 const inPeriod = computed(()=>data.value.transactions.filter(t=>t.date>=period.value.start&&t.date<=period.value.end));
@@ -116,7 +124,15 @@ async function demo(){const next=clone(data.value);const p=period.value;const en
  for(const [categoryId,amount,note,type,day,tagIds] of entries){let d=new Date(p.start+'T12:00:00');d.setDate(d.getDate()+day);next.transactions.push({id:uid(),date:dateKey(d),categoryId,amount,note,type,tagIds});}
  if(await commit(next)){modal.value=null;toast('Đã thêm 8 giao dịch mẫu vào chu kỳ đang xem');}}
 function go(id){page.value=id;query.value='';filter.value='all';filterTag.value='';filterCategory.value='';}
-onMounted(async()=>{try{data.value=await repository.load();syncSettings();ready.value=true;}catch(e){fatal.value=e.message;}});
+onMounted(async()=>{
+ try {
+  data.value=await repository.load();syncSettings();ready.value=true;
+  if(window.location.hash==='#install') {
+   open('install');
+   window.history.replaceState(null,'',window.location.pathname+window.location.search);
+  }
+ } catch(e) { fatal.value=e.message; }
+});
 </script>
 
 <template>
@@ -135,6 +151,7 @@ onMounted(async()=>{try{data.value=await repository.load();syncSettings();ready.
     <div v-if="fatal" class="fatal" role="alert"><h2>Chưa thể mở sổ</h2><p>{{fatal}}</p><button v-if="repository.raw" class="btn" @click="download(repository.raw()||'null','la-du-lieu-goc.json')">Xuất dữ liệu gốc</button><button class="btn" @click="retry">Thử lại</button></div>
     <template v-else-if="ready">
      <div class="page-heading"><div><div class="eyebrow">{{page==='dashboard'&&data.settings.displayName?'Xin chào, '+data.settings.displayName+'!':'MỖI NGÀY MỘT CHÚT, TÀI CHÍNH TỐT HƠN'}}</div><h1>{{page==='dashboard'?'Bức tranh tài chính':page==='transactions'?'Nhật ký thu chi':page==='categories'?'Sắp xếp theo cách của bạn':'Thiết lập sổ của bạn'}}<span v-if="page==='dashboard'" class="heading-spark">✳</span></h1><p>{{page==='dashboard'?'Biết tiền đi đâu, để chủ động hơn mỗi ngày.':page==='transactions'?'Từng khoản nhỏ, một bức tranh rõ ràng.':page==='categories'?'Danh mục rõ ràng, theo dõi nhẹ nhàng.':'Chọn chức năng bạn muốn thực hiện.'}}</p></div><button v-if="page!=='settings'" type="button" class="btn primary add-main" aria-label="Thêm giao dịch" @click="open('transaction')"><Plus :size="19"/><span class="add-main-label">Thêm giao dịch</span></button></div>
+     <button v-if="page==='dashboard'&&!installState.isInstalled" type="button" class="home-screen-entry" aria-haspopup="dialog" @click="open('install')"><Smartphone :size="22" aria-hidden="true"/><span><strong>Thêm vào màn hình chính</strong><small>Mở sổ nhanh bằng icon trên điện thoại</small></span><ChevronRight :size="18" aria-hidden="true"/></button>
      <div v-if="page==='dashboard'||page==='transactions'" class="period-toolbar"><div class="period-control"><button aria-label="Chu kỳ trước" @click="offset--"><ChevronLeft :size="17"/></button><CalendarDays :size="17"/><strong>{{periodLabel}}</strong><button aria-label="Chu kỳ sau" @click="offset++"><ChevronRight :size="17"/></button></div><button v-if="offset!==0" class="text-btn" @click="offset=0">Về kỳ hiện tại</button><span class="period-hint">Chu kỳ bắt đầu ngày {{data.settings.startDay}} hằng tháng <button aria-label="Đổi chu kỳ" @click="open('cycle')"><Settings2 :size="14"/></button></span></div>
 
      <template v-if="page==='dashboard'">
@@ -165,7 +182,8 @@ onMounted(async()=>{try{data.value=await repository.load();syncSettings();ready.
   <div v-if="notice" class="toast" role="status"><Check :size="18"/>{{notice}}</div>
   <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="importData">
   <div v-if="modal" class="modal-overlay" @click.self="!busy&&(modal=null)" @keydown.esc="!busy&&(modal=null)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"><div class="modal-header"><h2 id="modal-title">{{modalTitle}}</h2><button class="icon-btn" :disabled="busy" aria-label="Đóng" @click="modal=null"><X :size="22"/></button></div>
-   <form v-if="modal==='profile'" class="settings-dialog" @submit.prevent="saveProfile">
+   <InstallApp v-if="modal==='install'" :state="installState" @install="requestInstall" @close="modal=null"/>
+   <form v-else-if="modal==='profile'" class="settings-dialog" @submit.prevent="saveProfile">
     <p class="dialog-copy">Đặt tên để cá nhân hóa không gian thu chi của bạn.</p>
     <label for="display-name">Tên hiển thị</label>
     <input id="display-name" v-model="profileName" type="text" autocomplete="name" maxlength="80" placeholder="Ví dụ: Minh Anh" :aria-describedby="profileError?'display-name-hint display-name-error':'display-name-hint'" :aria-invalid="!!profileError" :disabled="busy" @input="profileError=''">

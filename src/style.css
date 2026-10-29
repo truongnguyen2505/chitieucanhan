@@ -42,3 +42,39 @@
 .settings-dialog .data-stats{justify-content:space-between;gap:12px}
 .settings-dialog .muted{font-size:11px;line-height:1.8}
 @media(max-width:650px){.settings-action{gap:12px;padding:15px 16px;min-height:72px}.settings-action-label{font-size:12px}.settings-dialog .modal-actions{flex-wrap:wrap}}
+
+.home-screen-entry{display:flex;align-items:center;gap:13px;width:100%;padding:15px 18px;margin-bottom:22px;border:1px solid #dce9dc;border-radius:12px;background:#edf5ef;color:#176b51;text-align:left}
+.home-screen-entry:hover{background:#e3efe5}
+.home-screen-entry>svg{flex-shrink:0}
+.home-screen-entry>svg:last-child{margin-left:auto}
+.home-screen-entry strong{display:block;font-size:12px;font-weight:600;line-height:1.6}
+.home-screen-entry small{display:block;margin-top:3px;font-size:10px;line-height:1.6;color:#64826c}
+.install-preview{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.install-app-icon{flex-shrink:0;border-radius:15px}
+.install-preview strong{display:block;font-size:16px;color:#254b37;line-height:1.6}
+.install-preview p{margin-top:5px;font-size:12px;line-height:1.8;color:#6b8060}
+.install-native{width:100%;min-height:46px;margin-bottom:18px}
+.install-platforms{display:flex;gap:5px;padding:4px;background:#f3f6ee;border-radius:10px;margin-bottom:18px}
+.install-platforms button{flex:1;min-height:44px;padding:10px 8px;border-radius:7px;color:#6b8060;font-size:12px}
+.install-platforms button.selected{background:#fff;color:#176b51;font-weight:600;box-shadow:0 2px 6px #213a1910}
+.install-steps{margin:0;padding-left:24px;color:#5d7255;font-size:12px;line-height:1.9}
+.install-steps li{padding-left:5px;margin-bottom:12px}
+.install-steps li::marker{color:#176b51;font-weight:650}
+.install-steps strong{color:#345b42;font-weight:600}
+.install-steps svg{display:inline;vertical-align:middle}
+.install-tip{display:flex;align-items:flex-start;gap:9px;padding:13px;background:#f5f8ef;border-radius:9px;color:#6b8060;font-size:11px;line-height:1.8;margin-top:18px}
+.install-tip svg,.install-status svg{flex-shrink:0;margin-top:3px}
+.install-status{display:flex;align-items:flex-start;gap:10px;border-radius:9px;background:#edf5ef;padding:14px;color:#176b51;font-size:12px;line-height:1.9}
+.install-feedback{font-size:12px;line-height:1.9;color:#5d7255;margin-bottom:15px}
+@media(max-width:650px){.home-screen-entry{padding:13px 14px;margin-bottom:18px}.install-preview{gap:13px}.install-preview strong{font-size:15px}.install-steps{font-size:13px}.topbar{padding-top:env(safe-area-inset-top);height:calc(65px + env(safe-area-inset-top))}.content{padding-bottom:calc(95px + env(safe-area-inset-bottom))}.add-main{bottom:calc(90px + env(safe-area-inset-bottom))}}
+
+.install-preview>div{min-width:0}
+.install-preview strong{overflow-wrap:anywhere}
+.install-name-form{margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.install-name-form input{width:100%;min-height:44px}
+.install-name-form>small{display:block;margin:9px 0 12px;font-size:11px;line-height:1.8;color:#6b8060}
+.install-name-form .btn{min-height:44px}
+.install-name-note{font-size:11px;line-height:1.8;color:#6b8060;margin-top:10px;overflow-wrap:anywhere}
+.install-steps strong{overflow-wrap:anywhere}
+.install-dialog .install-native{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:650px){.install-name-form input{font-size:16px}.install-name-form .btn{width:100%}}

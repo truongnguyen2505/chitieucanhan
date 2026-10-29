@@ -28,7 +28,7 @@ Hỗ trợ `ETag` cho GET/PUT và `If-Match` trên PUT để chống ghi đè gi
 ```json
 {
   "version": 1,
-  "settings": { "startDay": 25 },
+  "settings": { "startDay": 25, "displayName": "Minh Anh" },
   "categories": [
     { "id": "food", "name": "Ăn uống", "type": "expense", "color": "#f1a65a", "icon": "Utensils" },
     { "id": "salary", "name": "Lương", "type": "income", "color": "#5aab8c", "icon": "BriefcaseBusiness" }
@@ -41,6 +41,8 @@ Hỗ trợ `ETag` cho GET/PUT và `If-Match` trên PUT để chống ghi đè gi
 ```
 
 Ngày là ngày lịch `YYYY-MM-DD`, không phải UTC timestamp; không tự chuyển múi giờ. `amount` là số nguyên VND dương trong giới hạn safe integer JavaScript. `type` là `income` hoặc `expense`; category phải tồn tại và cùng type với transaction; mọi tagId phải tồn tại. ID phải duy nhất trong từng collection. `name` tối đa 80 ký tự, `note` tối đa 500 ký tự. Client kiểm tra dữ liệu nhưng server vẫn phải tự kiểm tra.
+
+`settings.displayName` là tên hiển thị cá nhân, kiểu chuỗi, tối đa 80 ký tự. Client loại bỏ khoảng trắng ở đầu và cuối; chuỗi rỗng dùng tên mặc định. Dữ liệu phiên bản 1 cũ có thể thiếu trường này và được đọc thành chuỗi rỗng. Tên được lưu cùng sổ, đi kèm bản sao lưu JSON và được xóa khi reset dữ liệu.
 
 ## Chuyển dữ liệu local sang DB
 

@@ -12,7 +12,7 @@ export function cycleFor(anchor, startDay, offset = 0) {
   return { start: dateKey(start), end: dateKey(end) };
 }
 export function freshData() {
-  return { version: 1, settings: { startDay: 1 }, tags: [{id:'personal',name:'Cá nhân'},{id:'family',name:'Gia đình'},{id:'work',name:'Công việc'}], categories: [
+  return { version: 1, settings: { startDay: 1, displayName: '' }, tags: [{id:'personal',name:'Cá nhân'},{id:'family',name:'Gia đình'},{id:'work',name:'Công việc'}], categories: [
     {id:'food',name:'Ăn uống',type:'expense',color:'#f1a65a',icon:'Utensils'},
     {id:'shopping',name:'Mua sắm',type:'expense',color:'#a897cf',icon:'ShoppingBag'},
     {id:'transport',name:'Di chuyển',type:'expense',color:'#82b5ce',icon:'Car'},
@@ -27,6 +27,7 @@ export function freshData() {
 export function validateData(raw) {
   const fail = () => { throw new Error('Dữ liệu không đúng định dạng sổ thu chi phiên bản 1.'); };
   if (!raw || raw.version !== 1 || !Number.isInteger(raw.settings?.startDay) || raw.settings.startDay < 1 || raw.settings.startDay > 31) fail();
+  if (raw.settings.displayName !== undefined && (typeof raw.settings.displayName !== 'string' || raw.settings.displayName.length > 80)) fail();
   if (!['categories','tags','transactions'].every(k => Array.isArray(raw[k]))) fail();
   const text = (v,max=80) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   for (const key of ['categories','tags','transactions']) {
@@ -35,6 +36,8 @@ export function validateData(raw) {
   if(raw.tags.some(t=>!text(t.name))) fail();
   if(raw.categories.some(c=>!text(c.name)||!['expense','income'].includes(c.type)||!/^#[0-9a-f]{6}$/i.test(c.color)||!text(c.icon))) fail();
   if(raw.transactions.some(t=> !Number.isSafeInteger(t.amount)||t.amount<=0||!['expense','income'].includes(t.type)||typeof t.note!=='string'||t.note.length>500||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||Number.isNaN(Date.parse(t.date+'T12:00:00'))||dateKey(new Date(t.date+'T12:00:00'))!==t.date||!raw.categories.some(c=>c.id===t.categoryId&&c.type===t.type)||!Array.isArray(t.tagIds)||new Set(t.tagIds).size!==t.tagIds.length||t.tagIds.some(id=>!raw.tags.some(tag=>tag.id===id)))) fail();
-  return structuredClone(raw);
+  const valid = structuredClone(raw);
+  valid.settings.displayName = (raw.settings.displayName ?? '').trim();
+  return valid;
 }
 export function totals(rows) { const income = rows.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0); const expense = rows.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0); return {income,expense,balance:income-expense}; }

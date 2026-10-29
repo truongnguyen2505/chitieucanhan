@@ -27,6 +27,7 @@ npm.cmd run preview
 
 ## Tính năng
 
+- Đặt hoặc đổi tên cá nhân tại Cài đặt → Tên của bạn. Tên và chữ cái đại diện hiển thị trên thanh điều hướng; trang Tổng quan chào theo tên. Tên được lưu cùng sổ, có trong sao lưu JSON và được xóa khi reset. Để trống tên để dùng “Sổ của tôi”.
 - Tạo, sửa, xóa thu/chi: ngày, số tiền, ghi chú, danh mục và nhiều tag.
 - Tạo, sửa danh mục thu/chi và tag. Không xóa danh mục đang có giao dịch; không đổi loại của danh mục đã dùng. Xóa tag gỡ tag khỏi giao dịch.
 - Chu kỳ lặp theo ngày bắt đầu 1–31. Ngày 25 nghĩa là 25 tháng này đến hết 24 tháng sau. Khi tháng thiếu ngày bắt đầu, lấy ngày cuối tháng. Chuyển chu kỳ trước/sau; về kỳ hiện tại.
@@ -56,7 +57,7 @@ Chưa có server/database được triển khai. REST adapter là điểm tích 
 pm test` kiểm tra chu kỳ 25→24, đổi năm, năm nhuận, liên tục giữa các kỳ cho ngày 1–31; kiểm tra import từ chối số tiền âm/lẻ, ngày không tồn tại, tham chiếu sai và ID trùng; kiểm tra tổng thu/chi. Build production đã chạy thành công. Lưu giao dịch có tag đã được thử trực tiếp trên trình duyệt.
 
 ## Reset dữ liệu
-Trong Cài đặt → Reset dữ liệu, popup yêu cầu xác nhận và có nút xuất bản sao lưu. Chọn Hủy, đóng popup hoặc Escape không xóa dữ liệu. Xác nhận xóa toàn bộ sẽ gỡ khóa localStorage của sổ để giải phóng dung lượng, khôi phục danh mục/tag mặc định trong bộ nhớ và chu kỳ ngày 1. Không xóa dữ liệu của ứng dụng khác, cache hay file sao lưu đã tải xuống. Nếu dùng REST, reset thay thế sổ trên server bằng dữ liệu mặc định qua PUT có kiểm tra ETag. Xóa thất bại giữ dữ liệu hiện tại và hiển thị lỗi.
+Trong Cài đặt → Reset dữ liệu, popup yêu cầu xác nhận và có nút xuất bản sao lưu. Chọn Hủy, đóng popup hoặc Escape không xóa dữ liệu. Xác nhận xóa toàn bộ sẽ gỡ khóa localStorage của sổ để giải phóng dung lượng, khôi phục danh mục/tag mặc định trong bộ nhớ, tên cá nhân trống và chu kỳ ngày 1. Không xóa dữ liệu của ứng dụng khác, cache hay file sao lưu đã tải xuống. Nếu dùng REST, reset thay thế sổ trên server bằng dữ liệu mặc định qua PUT có kiểm tra ETag. Xóa thất bại giữ dữ liệu hiện tại và hiển thị lỗi.
 
 
 

@@ -1,15 +1,31 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle } from 'lucide-vue-next';
+import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle, UserRound } from 'lucide-vue-next';
 import { repository } from './repository';
 import { freshData, dateKey, cycleFor, money, uid, totals, validateData } from './domain';
 const clone = value => JSON.parse(JSON.stringify(value));
 const retry = () => window.location.reload();
 const icons = { Utensils, ShoppingBag, Car, House, Wallet, Shapes, BriefcaseBusiness, CircleDollarSign };
+const iconLabels = { Utensils:'Ăn uống', ShoppingBag:'Mua sắm', Car:'Di chuyển', House:'Nhà cửa', Wallet:'Ví tiền', Shapes:'Tổng hợp', BriefcaseBusiness:'Công việc', CircleDollarSign:'Tiền' };
 const data = ref(freshData()), ready = ref(false), busy = ref(false), fatal = ref(''), notice = ref('');
 const page = ref('dashboard'), offset = ref(0), anchor = ref(dateKey()), modal = ref(null), query = ref(''), filter = ref('all'), filterTag = ref(''), filterCategory = ref('');
 const analysisBy = ref('categories'), analysisType = ref('expense'), form = ref({}), formError = ref(''), fileInput = ref(null), cycleDay = ref(1);
+const profileName = ref(''), profileError = ref('');
+const displayName = computed(()=>data.value.settings.displayName || 'Sổ của tôi');
+const avatarInitial = computed(()=>Array.from(data.value.settings.displayName || 'T')[0].toLocaleUpperCase('vi-VN'));
 const nav = [{id:'dashboard',label:'Tổng quan',icon:LayoutDashboard},{id:'transactions',label:'Giao dịch',icon:ArrowLeftRight},{id:'categories',label:'Danh mục & tag',icon:Shapes},{id:'settings',label:'Cài đặt',icon:Settings2}];
+const settingsActions = [
+ {id:'profile',label:'Tên của bạn',icon:UserRound},
+ {id:'cycle',label:'Chu kỳ tính thu chi',icon:CalendarDays},
+ {id:'backup',label:'Sao lưu dữ liệu',icon:Download},
+ {id:'restore',label:'Khôi phục dữ liệu',icon:Upload},
+ {id:'reset',label:'Reset dữ liệu',icon:Trash2}
+];
+const modalTitle = computed(()=>{
+ if(modal.value==='transaction')return data.value.transactions.some(t=>t.id===form.value.id)?'Sửa giao dịch':'Thêm giao dịch';
+ if(modal.value==='delete')return 'Xóa '+form.value.name;
+ return {profile:'Tên của bạn',cycle:'Chu kỳ tính thu chi',backup:'Sao lưu dữ liệu',restore:'Khôi phục dữ liệu',category:'Danh mục thu chi',tag:'Tag chi tiêu',import:'Xác nhận khôi phục dữ liệu',reset:'Xóa toàn bộ dữ liệu?',demo:'Khám phá sổ mẫu'}[modal.value]||'';
+});
 const period = computed(()=>cycleFor(anchor.value, data.value.settings.startDay, offset.value));
 const inPeriod = computed(()=>data.value.transactions.filter(t=>t.date>=period.value.start&&t.date<=period.value.end));
 const summary = computed(()=>totals(inPeriod.value));
@@ -48,7 +64,7 @@ document.addEventListener('keydown', event => {
 });
 function toast(message){notice.value=message;clearTimeout(timer);timer=setTimeout(()=>notice.value='',4500);}
 async function commit(next){ if(busy.value||!ready.value)return false;busy.value=true;try{await repository.save(next);data.value=next;return true;}catch(e){formError.value=e.message;toast(e.message);return false;}finally{busy.value=false;} }
-function open(type,item){formError.value='';modal.value=type;form.value=type==='transaction'?item?clone(item):{id:uid(),date:dateKey(),type:'expense',amount:'',categoryId:data.value.categories.find(c=>c.type==='expense')?.id||'',tagIds:[],note:''}:type==='category'?item?clone(item):{id:uid(),name:'',type:'expense',color:'#176b51',icon:'Shapes'}:type==='tag'?item?clone(item):{id:uid(),name:''}:{...item};}
+function open(type,item){if(busy.value||!ready.value)return;formError.value='';profileError.value='';if(type==='profile'||type==='cycle')syncSettings();modal.value=type;form.value=type==='transaction'?item?clone(item):{id:uid(),date:dateKey(),type:'expense',amount:'',categoryId:data.value.categories.find(c=>c.type==='expense')?.id||'',tagIds:[],note:''}:type==='category'?item?clone(item):{id:uid(),name:'',type:'expense',color:'#176b51',icon:'Shapes'}:type==='tag'?item?clone(item):{id:uid(),name:''}:{...item};}
 function setType(type){form.value.type=type;form.value.categoryId=data.value.categories.find(c=>c.type===type)?.id||'';}
 async function saveForm(){
  const f=clone(form.value),next=clone(data.value);formError.value='';
@@ -71,17 +87,25 @@ async function deleteItem(){const next=clone(data.value),{kind,id}=form.value;
  next[kind]=next[kind].filter(x=>x.id!==id);
  if(kind==='tags')next.transactions.forEach(t=>t.tagIds=t.tagIds.filter(x=>x!==id));
  if(await commit(next)){modal.value=null;toast('Đã xóa');}}
-async function saveCycle(){const next=clone(data.value);next.settings.startDay=Number(cycleDay.value);if(await commit(next)){offset.value=0;toast('Đã cập nhật chu kỳ tính thu chi');}}
+function syncSettings(){cycleDay.value=data.value.settings.startDay;profileName.value=data.value.settings.displayName;profileError.value='';}
+async function saveProfile(){
+ const name=profileName.value.trim();profileError.value='';
+ if(name.length>80){profileError.value='Tên của bạn không được dài quá 80 ký tự.';return;}
+ const next=clone(data.value);next.settings.displayName=name;
+ if(await commit(next)){profileName.value=name;modal.value=null;toast('Đã lưu tên của bạn');}
+ else profileError.value=formError.value;
+}
+async function saveCycle(){const next=clone(data.value);next.settings.startDay=Number(cycleDay.value);if(await commit(next)){offset.value=0;modal.value=null;toast('Đã cập nhật chu kỳ tính thu chi');}}
 function download(content,name){const url=URL.createObjectURL(new Blob([content],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function exportData(){download(JSON.stringify(data.value,null,2),`la-sao-luu-${dateKey()}.json`);toast('Đã xuất bản sao lưu');}
-async function importData(event){const file=event.target.files?.[0];event.target.value='';if(!file)return;try{if(file.size>10*1024*1024)throw new Error('Chỉ nhận file JSON tối đa 10 MB.');const parsed=validateData(JSON.parse(await file.text()));open('import',{parsed,name:file.name});}catch(e){toast(e.message);}}
-async function confirmImport(){if(await commit(form.value.parsed)){cycleDay.value=data.value.settings.startDay;offset.value=0;modal.value=null;toast('Đã khôi phục dữ liệu');}}
+async function importData(event){const file=event.target.files?.[0];event.target.value='';if(!file)return;formError.value='';try{if(file.size>10*1024*1024)throw new Error('Chỉ nhận file JSON tối đa 10 MB.');const parsed=validateData(JSON.parse(await file.text()));open('import',{parsed,name:file.name});}catch(e){formError.value=e.message;toast(e.message);}}
+async function confirmImport(){if(await commit(clone(form.value.parsed))){syncSettings();offset.value=0;modal.value=null;toast('Đã khôi phục dữ liệu');}}
 async function resetData(){
  if(busy.value)return;
  busy.value=true;formError.value='';
  try{
   await repository.reset();
-  data.value=freshData();cycleDay.value=1;anchor.value=dateKey();offset.value=0;
+  data.value=freshData();syncSettings();anchor.value=dateKey();offset.value=0;
   query.value='';filter.value='all';filterTag.value='';filterCategory.value='';
   analysisBy.value='categories';analysisType.value='expense';fatal.value='';ready.value=true;
   modal.value=null;form.value={};toast('Đã reset dữ liệu. Sổ đã trở về trạng thái ban đầu.');
@@ -92,7 +116,7 @@ async function demo(){const next=clone(data.value);const p=period.value;const en
  for(const [categoryId,amount,note,type,day,tagIds] of entries){let d=new Date(p.start+'T12:00:00');d.setDate(d.getDate()+day);next.transactions.push({id:uid(),date:dateKey(d),categoryId,amount,note,type,tagIds});}
  if(await commit(next)){modal.value=null;toast('Đã thêm 8 giao dịch mẫu vào chu kỳ đang xem');}}
 function go(id){page.value=id;query.value='';filter.value='all';filterTag.value='';filterCategory.value='';}
-onMounted(async()=>{try{data.value=await repository.load();cycleDay.value=data.value.settings.startDay;ready.value=true;}catch(e){fatal.value=e.message;}});
+onMounted(async()=>{try{data.value=await repository.load();syncSettings();ready.value=true;}catch(e){fatal.value=e.message;}});
 </script>
 
 <template>
@@ -103,15 +127,15 @@ onMounted(async()=>{try{data.value=await repository.load();cycleDay.value=data.v
    <nav aria-label="Điều hướng chính"><button v-for="n in nav" :key="n.id" :class="['nav-item',{active:page===n.id}]" @click="go(n.id)"><component :is="n.icon" :size="20"/>{{n.label}}<span v-if="page===n.id" class="nav-dot"></span></button></nav>
    <div class="sidebar-note"><span class="mini-leaf"><Leaf :size="20"/></span><strong>Từng chút một,<br>vững vàng hơn.</strong><p>Hiểu dòng tiền hôm nay.<br>An tâm cho ngày mai.</p></div>
    <div class="local-status"><span></span>{{ repository.raw ? 'Dữ liệu lưu trên thiết bị' : 'Dữ liệu qua REST API' }}</div>
-   <div class="profile"><span class="avatar">T</span><div><strong>Sổ của tôi</strong><small>Không gian tài chính cá nhân</small></div></div>
+   <button type="button" class="profile" :disabled="!ready||busy" aria-label="Cài đặt tên cá nhân" @click="open('profile')"><span class="avatar">{{avatarInitial}}</span><span class="profile-copy"><strong :title="displayName">{{displayName}}</strong><small>Không gian tài chính cá nhân</small></span><Pencil :size="14" class="muted"/></button>
   </aside>
   <main>
-   <header class="topbar"><span class="breadcrumb">Không gian cá nhân <span>/</span> {{nav.find(n=>n.id===page)?.label}}</span><span class="today"><CalendarDays :size="15"/>{{new Date().toLocaleDateString('vi-VN',{day:'numeric',month:'long',year:'numeric'})}}</span><span class="mobile-brand"><Leaf :size="21"/> lá.</span><span class="avatar small">T</span></header>
+   <header class="topbar"><span class="breadcrumb">Không gian cá nhân <span>/</span> {{nav.find(n=>n.id===page)?.label}}</span><span class="today"><CalendarDays :size="15"/>{{new Date().toLocaleDateString('vi-VN',{day:'numeric',month:'long',year:'numeric'})}}</span><span class="mobile-brand"><Leaf :size="21"/> lá.</span><button type="button" class="header-profile" :disabled="!ready||busy" :aria-label="'Cài đặt tên cá nhân: '+displayName" @click="open('profile')"><span class="profile-label" :title="displayName">{{displayName}}</span><span class="avatar small">{{avatarInitial}}</span></button></header>
    <div class="content">
     <div v-if="fatal" class="fatal" role="alert"><h2>Chưa thể mở sổ</h2><p>{{fatal}}</p><button v-if="repository.raw" class="btn" @click="download(repository.raw()||'null','la-du-lieu-goc.json')">Xuất dữ liệu gốc</button><button class="btn" @click="retry">Thử lại</button></div>
     <template v-else-if="ready">
-     <div class="page-heading"><div><div class="eyebrow">MỖI NGÀY MỘT CHÚT, TÀI CHÍNH TỐT HƠN</div><h1>{{page==='dashboard'?'Bức tranh tài chính':page==='transactions'?'Nhật ký thu chi':page==='categories'?'Sắp xếp theo cách của bạn':'Thiết lập sổ của bạn'}}<span v-if="page==='dashboard'" class="heading-spark">✳</span></h1><p>{{page==='dashboard'?'Biết tiền đi đâu, để chủ động hơn mỗi ngày.':page==='transactions'?'Từng khoản nhỏ, một bức tranh rõ ràng.':page==='categories'?'Danh mục rõ ràng, theo dõi nhẹ nhàng.':'Chọn chu kỳ phù hợp và giữ dữ liệu của bạn an toàn.'}}</p></div><button class="btn primary add-main" @click="open('transaction')"><Plus :size="19"/>Thêm giao dịch</button></div>
-     <div v-if="page==='dashboard'||page==='transactions'" class="period-toolbar"><div class="period-control"><button aria-label="Chu kỳ trước" @click="offset--"><ChevronLeft :size="17"/></button><CalendarDays :size="17"/><strong>{{periodLabel}}</strong><button aria-label="Chu kỳ sau" @click="offset++"><ChevronRight :size="17"/></button></div><button v-if="offset!==0" class="text-btn" @click="offset=0">Về kỳ hiện tại</button><span class="period-hint">Chu kỳ bắt đầu ngày {{data.settings.startDay}} hằng tháng <button aria-label="Đổi chu kỳ" @click="go('settings')"><Settings2 :size="14"/></button></span></div>
+     <div class="page-heading"><div><div class="eyebrow">{{page==='dashboard'&&data.settings.displayName?'Xin chào, '+data.settings.displayName+'!':'MỖI NGÀY MỘT CHÚT, TÀI CHÍNH TỐT HƠN'}}</div><h1>{{page==='dashboard'?'Bức tranh tài chính':page==='transactions'?'Nhật ký thu chi':page==='categories'?'Sắp xếp theo cách của bạn':'Thiết lập sổ của bạn'}}<span v-if="page==='dashboard'" class="heading-spark">✳</span></h1><p>{{page==='dashboard'?'Biết tiền đi đâu, để chủ động hơn mỗi ngày.':page==='transactions'?'Từng khoản nhỏ, một bức tranh rõ ràng.':page==='categories'?'Danh mục rõ ràng, theo dõi nhẹ nhàng.':'Chọn chức năng bạn muốn thực hiện.'}}</p></div><button v-if="page!=='settings'" type="button" class="btn primary add-main" aria-label="Thêm giao dịch" @click="open('transaction')"><Plus :size="19"/><span class="add-main-label">Thêm giao dịch</span></button></div>
+     <div v-if="page==='dashboard'||page==='transactions'" class="period-toolbar"><div class="period-control"><button aria-label="Chu kỳ trước" @click="offset--"><ChevronLeft :size="17"/></button><CalendarDays :size="17"/><strong>{{periodLabel}}</strong><button aria-label="Chu kỳ sau" @click="offset++"><ChevronRight :size="17"/></button></div><button v-if="offset!==0" class="text-btn" @click="offset=0">Về kỳ hiện tại</button><span class="period-hint">Chu kỳ bắt đầu ngày {{data.settings.startDay}} hằng tháng <button aria-label="Đổi chu kỳ" @click="open('cycle')"><Settings2 :size="14"/></button></span></div>
 
      <template v-if="page==='dashboard'">
       <section class="summary-grid" aria-label="Tóm tắt thu chi"><article class="balance-card"><div class="card-top"><span>Số dư trong kỳ</span><Wallet :size="21"/></div><h2>{{money(summary.balance)}}</h2><div class="balance-footer"><span class="light-dot"></span>Thu nhập − Chi tiêu<span class="card-decoration">↗</span></div></article><article class="summary-card"><div class="card-top"><span>Tổng thu nhập</span><span class="round-icon income"><ArrowDownLeft :size="20"/></span></div><h2>{{money(summary.income)}}</h2><p><span class="income-text">{{inPeriod.filter(t=>t.type==='income').length}} khoản thu</span><span> trong chu kỳ này</span></p></article><article class="summary-card"><div class="card-top"><span>Tổng chi tiêu</span><span class="round-icon expense"><ArrowUpRight :size="20"/></span></div><h2>{{money(summary.expense)}}</h2><p><span class="expense-text">{{inPeriod.filter(t=>t.type==='expense').length}} khoản chi</span><span> trong chu kỳ này</span></p></article></section>
@@ -124,21 +148,68 @@ onMounted(async()=>{try{data.value=await repository.load();cycleDay.value=data.v
 
      <template v-if="page==='categories'"><div class="management-grid"><section v-for="type in ['expense','income']" :key="type" class="panel"><div class="panel-heading"><h3>{{type==='expense'?'Danh mục chi tiêu':'Danh mục thu nhập'}}</h3><button class="icon-btn" :aria-label="'Thêm danh mục '+type" @click="open('category');form.type=type"><Plus :size="20"/></button></div><div v-for="c in data.categories.filter(x=>x.type===type)" :key="c.id" class="manage-row"><span class="category-icon" :style="{background:c.color+'22',color:c.color}"><component :is="icons[c.icon]||Shapes" :size="20"/></span><strong>{{c.name}}</strong><button class="icon-btn" :aria-label="'Sửa '+c.name" @click="open('category',c)"><Pencil :size="16"/></button><button class="icon-btn" :aria-label="'Xóa '+c.name" @click="open('delete',{kind:'categories',id:c.id,name:c.name})"><Trash2 :size="16"/></button></div></section><section class="panel tag-panel"><div class="panel-heading"><div><h3>Tag của bạn</h3><p>Gắn nhiều tag cho một giao dịch để theo dõi linh hoạt.</p></div><button class="btn" @click="open('tag')"><Plus :size="17"/>Thêm tag</button></div><div class="tag-manager"><div v-for="t in data.tags" :key="t.id"><Tag :size="15"/><strong>{{t.name}}</strong><button class="icon-btn" :aria-label="'Sửa tag '+t.name" @click="open('tag',t)"><Pencil :size="14"/></button><button class="icon-btn" :aria-label="'Xóa tag '+t.name" @click="open('delete',{kind:'tags',id:t.id,name:t.name})"><X :size="15"/></button></div></div><p v-if="!data.tags.length" class="muted">Chưa có tag. Tạo tag đầu tiên của bạn.</p></section></div></template>
 
-     <template v-if="page==='settings'"><div class="settings-grid"><section class="panel settings-card"><span class="settings-icon"><CalendarDays :size="24"/></span><h3>Chu kỳ tính thu chi</h3><p>Bắt đầu tháng tài chính vào ngày nhận lương, hoặc bất kỳ ngày nào phù hợp với bạn.</p><form @submit.prevent="saveCycle"><label for="cycle">Ngày bắt đầu hằng tháng</label><select id="cycle" v-model.number="cycleDay"><option v-for="n in 31" :key="n" :value="n">Ngày {{n}}</option></select><div class="preview-cycle">Ví dụ: {{shortDate(cycleFor(anchor,cycleDay).start)}} – {{shortDate(cycleFor(anchor,cycleDay).end)}}<small>Tháng thiếu ngày 29–31 sẽ lấy ngày cuối tháng.</small></div><button class="btn primary" :disabled="busy" type="submit"><Check :size="17"/>Lưu chu kỳ</button></form></section><section class="panel settings-card"><span class="settings-icon"><Download :size="24"/></span><h3>Dữ liệu của bạn</h3><p>{{repository.raw?'Dữ liệu được lưu trong trình duyệt trên thiết bị này. Xóa dữ liệu trình duyệt có thể làm mất sổ; hãy sao lưu định kỳ.':'Đang sử dụng kho dữ liệu REST API.'}}</p><div class="data-stats"><span><strong>{{data.transactions.length}}</strong> giao dịch</span><span><strong>{{data.categories.length}}</strong> danh mục</span><span><strong>{{data.tags.length}}</strong> tag</span></div><button class="btn wide" @click="exportData"><Download :size="17"/>Xuất bản sao lưu JSON</button><button class="btn wide" @click="fileInput.click()"><Upload :size="17"/>Khôi phục từ file JSON</button><input ref="fileInput" type="file" accept=".json,application/json" hidden @change="importData"><small class="muted">Bản sao lưu gồm giao dịch, danh mục, tag và chu kỳ.</small><div class="reset-section"><h3>Reset dữ liệu</h3><p>Xóa toàn bộ dữ liệu đã lưu của sổ và khôi phục thiết lập ban đầu.</p><button class="btn danger wide" :disabled="busy" @click="open('reset')"><Trash2 :size="17"/>Reset dữ liệu</button></div></section></div><div class="settings-footer"><Leaf :size="17"/> Lá · Chi tiêu có ý thức, cuộc sống nhẹ nhàng hơn.</div></template>
+     <template v-if="page==='settings'">
+      <section class="panel settings-menu" aria-label="Các chức năng cài đặt">
+       <button v-for="action in settingsActions" :key="action.id" type="button" :class="['settings-action',{danger:action.id==='reset'}]" :disabled="busy" aria-haspopup="dialog" @click="open(action.id)">
+        <span class="settings-action-icon"><component :is="action.icon" :size="21" aria-hidden="true"/></span>
+        <span class="settings-action-label">{{action.label}}</span>
+        <ChevronRight :size="18" class="settings-action-chevron" aria-hidden="true"/>
+       </button>
+      </section>
+     </template>
      <footer class="page-footer"><span><span class="status-dot"></span>{{repository.raw?'Chỉ mình bạn, trên thiết bị này':'Kết nối kho dữ liệu REST'}}</span><span>Một thói quen nhỏ. Một thay đổi lớn.</span></footer>
     </template><div v-else class="loading"><LoaderCircle :size="26"/>Đang mở sổ của bạn…</div>
    </div>
   </main>
   <nav class="bottom-nav" aria-label="Điều hướng di động"><button v-for="n in nav" :key="n.id" :class="{active:page===n.id}" @click="go(n.id)"><component :is="n.icon" :size="21"/><span>{{n.id==='categories'?'Danh mục':n.label}}</span></button></nav>
   <div v-if="notice" class="toast" role="status"><Check :size="18"/>{{notice}}</div>
-  <div v-if="modal" class="modal-overlay" @click.self="!busy&&(modal=null)" @keydown.esc="!busy&&(modal=null)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"><div class="modal-header"><h2 id="modal-title">{{modal==='transaction'?(data.transactions.some(t=>t.id===form.id)?'Sửa giao dịch':'Thêm giao dịch'):modal==='category'?'Danh mục thu chi':modal==='tag'?'Tag chi tiêu':modal==='delete'?'Xóa '+form.name:modal==='import'?'Khôi phục dữ liệu':modal==='reset'?'Xóa toàn bộ dữ liệu?':'Khám phá sổ mẫu'}}</h2><button class="icon-btn" :disabled="busy" aria-label="Đóng" @click="modal=null"><X :size="22"/></button></div>
-   <form v-if="['transaction','category','tag'].includes(modal)" @submit.prevent="saveForm">
-    <template v-if="modal==='transaction'"><div class="type-switch"><button type="button" :class="{selected:form.type==='expense'}" @click="setType('expense')"><ArrowUpRight :size="18"/>Khoản chi</button><button type="button" :class="{selected:form.type==='income'}" @click="setType('income')"><ArrowDownLeft :size="18"/>Khoản thu</button></div><label for="amount">Số tiền <span>(VND)</span></label><input id="amount" v-model="form.amount" class="amount-input" type="number" inputmode="numeric" step="1" min="1" max="9007199254740991" placeholder="0" required autofocus><div class="form-columns"><div><label for="date">Ngày giao dịch</label><input id="date" v-model="form.date" type="date" min="1900-01-01" max="9999-12-31" required></div><div><label for="category">Danh mục</label><select id="category" v-model="form.categoryId" required><option v-for="c in data.categories.filter(x=>x.type===form.type)" :key="c.id" :value="c.id">{{c.name}}</option></select></div></div><label for="note">Ghi chú <span>· không bắt buộc</span></label><textarea id="note" v-model="form.note" maxlength="500" rows="2" placeholder="Khoản này dành cho điều gì?"></textarea><label>Gắn tag <span>· có thể chọn nhiều</span></label><div class="tag-picker"><label v-for="t in data.tags" :key="t.id" :class="{checked:form.tagIds.includes(t.id)}"><input v-model="form.tagIds" type="checkbox" :value="t.id"><Tag :size="13"/>{{t.name}}</label><small v-if="!data.tags.length" class="muted">Tạo tag trong mục Danh mục & tag.</small></div></template>
-    <template v-else><label for="name">Tên {{modal==='tag'?'tag':'danh mục'}}</label><input id="name" v-model="form.name" maxlength="80" required autofocus placeholder="Ví dụ: Sức khỏe"><template v-if="modal==='category'"><label for="categoryType">Loại</label><select id="categoryType" v-model="form.type" :disabled="data.transactions.some(t=>t.categoryId===form.id)"><option value="expense">Chi tiêu</option><option value="income">Thu nhập</option></select><small v-if="data.transactions.some(t=>t.categoryId===form.id)" class="muted">Danh mục đã có giao dịch nên không thể đổi loại.</small><div class="form-columns"><div><label for="color">Màu sắc</label><input id="color" v-model="form.color" type="color"></div><div><label for="icon">Biểu tượng</label><select id="icon" v-model="form.icon"><option v-for="(icon,name) in icons" :key="name" :value="name">{{({Utensils:'Ăn uống',ShoppingBag:'Mua sắm',Car:'Di chuyển',House:'Nhà cửa',Wallet:'Ví tiền',Shapes:'Tổng hợp',BriefcaseBusiness:'Công việc',CircleDollarSign:'Tiền'})[name]}}</option></select></div></div></template></template>
+  <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="importData">
+  <div v-if="modal" class="modal-overlay" @click.self="!busy&&(modal=null)" @keydown.esc="!busy&&(modal=null)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"><div class="modal-header"><h2 id="modal-title">{{modalTitle}}</h2><button class="icon-btn" :disabled="busy" aria-label="Đóng" @click="modal=null"><X :size="22"/></button></div>
+   <form v-if="modal==='profile'" class="settings-dialog" @submit.prevent="saveProfile">
+    <p class="dialog-copy">Đặt tên để cá nhân hóa không gian thu chi của bạn.</p>
+    <label for="display-name">Tên hiển thị</label>
+    <input id="display-name" v-model="profileName" type="text" autocomplete="name" maxlength="80" placeholder="Ví dụ: Minh Anh" :aria-describedby="profileError?'display-name-hint display-name-error':'display-name-hint'" :aria-invalid="!!profileError" :disabled="busy" @input="profileError=''">
+    <small id="display-name-hint" class="profile-hint">Tối đa 80 ký tự. Để trống để dùng tên mặc định.</small>
+    <p v-if="profileError" id="display-name-error" class="form-error" role="alert">{{profileError}}</p>
+    <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="submit" class="btn primary" :disabled="busy"><Check :size="17"/>{{busy?'Đang lưu…':'Lưu tên'}}</button></div>
+   </form>
+   <form v-else-if="modal==='cycle'" class="settings-dialog" @submit.prevent="saveCycle">
+    <p class="dialog-copy">Bắt đầu tháng tài chính vào ngày nhận lương, hoặc bất kỳ ngày nào phù hợp với bạn.</p>
+    <label for="cycle">Ngày bắt đầu hằng tháng</label>
+    <select id="cycle" v-model.number="cycleDay" :disabled="busy"><option v-for="n in 31" :key="n" :value="n">Ngày {{n}}</option></select>
+    <div class="preview-cycle">Ví dụ: {{shortDate(cycleFor(anchor,cycleDay).start)}} – {{shortDate(cycleFor(anchor,cycleDay).end)}}<small>Tháng thiếu ngày 29–31 sẽ lấy ngày cuối tháng.</small></div>
+    <p v-if="formError" class="form-error" role="alert">{{formError}}</p>
+    <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="submit" class="btn primary" :disabled="busy"><Check :size="17"/>{{busy?'Đang lưu…':'Lưu chu kỳ'}}</button></div>
+   </form>
+   <div v-else-if="modal==='backup'" class="settings-dialog">
+    <p class="dialog-copy">Tải bản sao lưu JSON gồm giao dịch, danh mục, tag, tên cá nhân và chu kỳ. Bạn có thể dùng file này để khôi phục sổ sau.</p>
+    <div class="data-stats"><span><strong>{{data.transactions.length}}</strong> giao dịch</span><span><strong>{{data.categories.length}}</strong> danh mục</span><span><strong>{{data.tags.length}}</strong> tag</span></div>
+    <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Đóng</button><button type="button" class="btn primary" :disabled="busy" @click="exportData"><Download :size="17"/>Tải bản sao lưu</button></div>
+   </div>
+   <div v-else-if="modal==='restore'" class="settings-dialog">
+    <p class="dialog-copy">Chọn bản sao lưu JSON để khôi phục sổ. Bạn sẽ được xem thông tin file và xác nhận trước khi thay thế dữ liệu hiện tại.</p>
+    <small class="muted">Chấp nhận file JSON, tối đa 10 MB.</small>
+    <p v-if="formError" class="form-error" role="alert">{{formError}}</p>
+    <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="button" class="btn primary" :disabled="busy" @click="fileInput.click()"><Upload :size="17"/>Chọn file JSON</button></div>
+   </div>
+   <form v-else-if="['transaction','category','tag'].includes(modal)" @submit.prevent="saveForm">
+    <template v-if="modal==='transaction'"><div class="type-switch"><button type="button" :class="{selected:form.type==='expense'}" @click="setType('expense')"><ArrowUpRight :size="18"/>Khoản chi</button><button type="button" :class="{selected:form.type==='income'}" @click="setType('income')"><ArrowDownLeft :size="18"/>Khoản thu</button></div><label for="amount">Số tiền <span>(VND)</span></label><input id="amount" v-model="form.amount" class="amount-input" type="number" inputmode="numeric" step="1" min="1" max="9007199254740991" placeholder="0" required autofocus><div class="form-columns transaction-fields"><div><label for="date">Ngày giao dịch</label><input id="date" v-model="form.date" type="date" min="1900-01-01" max="9999-12-31" required></div><div><label for="category">Danh mục</label><select id="category" v-model="form.categoryId" required><option v-for="c in data.categories.filter(x=>x.type===form.type)" :key="c.id" :value="c.id">{{c.name}}</option></select></div></div><label for="note">Ghi chú <span>· không bắt buộc</span></label><textarea id="note" v-model="form.note" maxlength="500" rows="2" placeholder="Khoản này dành cho điều gì?"></textarea><label>Gắn tag <span>· có thể chọn nhiều</span></label><div class="tag-picker"><label v-for="t in data.tags" :key="t.id" :class="{checked:form.tagIds.includes(t.id)}"><input v-model="form.tagIds" type="checkbox" :value="t.id"><Tag :size="13"/>{{t.name}}</label><small v-if="!data.tags.length" class="muted">Tạo tag trong mục Danh mục & tag.</small></div></template>
+    <template v-else><label for="name">Tên {{modal==='tag'?'tag':'danh mục'}}</label><input id="name" v-model="form.name" maxlength="80" required autofocus placeholder="Ví dụ: Sức khỏe"><template v-if="modal==='category'"><label for="categoryType">Loại</label><select id="categoryType" v-model="form.type" :disabled="data.transactions.some(t=>t.categoryId===form.id)"><option value="expense">Chi tiêu</option><option value="income">Thu nhập</option></select><small v-if="data.transactions.some(t=>t.categoryId===form.id)" class="muted">Danh mục đã có giao dịch nên không thể đổi loại.</small><div class="category-color-control"><label for="color">Màu sắc</label><input id="color" v-model="form.color" type="color"></div>
+     <fieldset class="icon-fieldset" :disabled="busy" :style="{'--category-color':form.color}">
+      <legend>Biểu tượng</legend>
+      <div class="icon-picker">
+       <label v-for="(icon,name) in icons" :key="name" :class="['icon-choice',{selected:form.icon===name}]">
+        <input v-model="form.icon" type="radio" name="category-icon" :value="name">
+        <component :is="icon" :size="24" class="icon-glyph" aria-hidden="true"/>
+        <span class="icon-choice-name">{{iconLabels[name]}}</span>
+        <Check v-if="form.icon===name" :size="13" class="icon-choice-check" aria-hidden="true"/>
+       </label>
+      </div>
+     </fieldset></template></template>
     <p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button v-if="modal==='transaction'&&data.transactions.some(t=>t.id===form.id)" type="button" class="btn danger" @click="open('delete',{kind:'transactions',id:form.id,name:'giao dịch này'})"><Trash2 :size="17"/>Xóa</button><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="submit" class="btn primary" :disabled="busy">{{busy?'Đang lưu…':'Lưu '+(modal==='transaction'?'giao dịch':modal==='tag'?'tag':'danh mục')}}</button></div>
    </form>
-   <template v-else-if="modal==='reset'"><p class="dialog-copy">Bạn sắp xóa <strong>toàn bộ {{data.transactions.length}} giao dịch, danh mục, tag và chu kỳ đã lưu</strong>{{repository.raw?' của sổ thu chi trên trình duyệt này':' của sổ thu chi trên máy chủ'}}. Hành động này không thể hoàn tác nếu bạn chưa có bản sao lưu.</p><p class="dialog-copy">Sổ sẽ trở về trạng thái ban đầu với danh mục và tag mặc định, không có giao dịch. {{repository.raw?'Dữ liệu đã lưu của sổ sẽ được xóa khỏi bộ nhớ trình duyệt.':'Dữ liệu máy chủ sẽ được thay thế bằng sổ mặc định.'}}</p><button class="btn" :disabled="busy" @click="exportData"><Download :size="17"/>Sao lưu trước khi xóa</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="resetData">{{busy?'Đang xóa…':'Xóa toàn bộ dữ liệu'}}</button></div></template><template v-else-if="modal==='delete'"><p class="dialog-copy">{{form.kind==='tags'?'Tag sẽ được gỡ khỏi các giao dịch có gắn tag này.':'Bạn muốn xóa mục này khỏi sổ thu chi?'}}</p><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="deleteItem">Xác nhận xóa</button></div></template>
-   <template v-else-if="modal==='import'"><p class="dialog-copy">File <strong>{{form.name}}</strong> có {{form.parsed.transactions.length}} giao dịch. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại. Bạn nên xuất bản sao lưu trước.</p><button class="btn" @click="exportData"><Download :size="17"/>Sao lưu dữ liệu hiện tại</button><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="confirmImport">Thay thế và khôi phục</button></div></template>
+   <template v-else-if="modal==='reset'"><p class="dialog-copy">Bạn sắp xóa <strong>toàn bộ {{data.transactions.length}} giao dịch, danh mục, tag, tên cá nhân và chu kỳ đã lưu</strong>{{repository.raw?' của sổ thu chi trên trình duyệt này':' của sổ thu chi trên máy chủ'}}. Hành động này không thể hoàn tác nếu bạn chưa có bản sao lưu.</p><p class="dialog-copy">Sổ sẽ trở về trạng thái ban đầu với danh mục và tag mặc định, không có giao dịch. {{repository.raw?'Dữ liệu đã lưu của sổ sẽ được xóa khỏi bộ nhớ trình duyệt.':'Dữ liệu máy chủ sẽ được thay thế bằng sổ mặc định.'}}</p><button class="btn" :disabled="busy" @click="exportData"><Download :size="17"/>Sao lưu trước khi xóa</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="resetData">{{busy?'Đang xóa…':'Xóa toàn bộ dữ liệu'}}</button></div></template><template v-else-if="modal==='delete'"><p class="dialog-copy">{{form.kind==='tags'?'Tag sẽ được gỡ khỏi các giao dịch có gắn tag này.':'Bạn muốn xóa mục này khỏi sổ thu chi?'}}</p><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="deleteItem">Xác nhận xóa</button></div></template>
+   <template v-else-if="modal==='import'"><p class="dialog-copy">File <strong>{{form.name}}</strong> có {{form.parsed.transactions.length}} giao dịch. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại. Bạn nên xuất bản sao lưu trước.</p><button class="btn" @click="exportData"><Download :size="17"/>Sao lưu dữ liệu hiện tại</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="confirmImport">Thay thế và khôi phục</button></div></template>
    <template v-else><p class="dialog-copy">Thêm 8 giao dịch minh họa vào chu kỳ đang xem để trải nghiệm dashboard. Bạn có thể sửa hoặc xóa từng giao dịch sau đó.</p><div class="modal-actions"><button class="btn" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="demo">Thêm dữ liệu mẫu</button></div></template>
   </section></div>
  </div>

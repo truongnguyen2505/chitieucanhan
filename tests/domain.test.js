@@ -30,3 +30,30 @@ test('totals distinguish income, expense and balance',()=>{
  assert.deepEqual(totals([{type:'income',amount:1000},{type:'expense',amount:300},{type:'expense',amount:200}]),{income:1000,expense:500,balance:500});
  assert.deepEqual(totals([]),{income:0,expense:0,balance:0});
 });
+
+test('legacy ledgers gain an empty display name without changing the source',()=>{
+ const legacy=freshData();delete legacy.settings.displayName;
+ legacy.settings.startDay=25;
+ legacy.transactions.push({id:'legacy',type:'expense',amount:100,date:'2026-10-29',categoryId:'food',tagIds:['personal'],note:''});
+ const original=structuredClone(legacy);
+ const migrated=validateData(legacy);
+ assert.deepEqual(legacy,original);
+ assert.deepEqual(migrated,{...original,settings:{startDay:25,displayName:''}});
+});
+
+test('display names support Vietnamese, trim surrounding whitespace and can be cleared',()=>{
+ for(const [name,expected] of [['  Nguyễn Minh Anh  ','Nguyễn Minh Anh'],['',''],['   ',''],['A'.repeat(80),'A'.repeat(80)]]){
+  const ledger=freshData();ledger.settings.displayName=name;
+  const validated=validateData(ledger);
+  assert.equal(validated.settings.displayName,expected);
+  assert.equal(ledger.settings.displayName,name);
+  assert.equal(validateData(JSON.parse(JSON.stringify(validated))).settings.displayName,expected);
+ }
+});
+
+test('display names reject invalid types and names over the limit',()=>{
+ for(const name of [null,42,true,[],{},'A'.repeat(81)]){
+  const ledger=freshData();ledger.settings.displayName=name;
+  assert.throws(()=>validateData(ledger));
+ }
+});

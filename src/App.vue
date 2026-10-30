@@ -6,6 +6,7 @@ import InstallApp from './InstallApp.vue';
 import QuickEntries from './QuickEntries.vue';
 import TransactionRow from './TransactionRow.vue';
 import PeriodComparison from './PeriodComparison.vue';
+import { formatAmountInput, amountInputState, amountToWords } from './amount-input.js';
 import { createInstallManager } from './install.js';
 import { freshData, dateKey, cycleFor, money, uid, totals, validateData, transactionDraft, quickTemplateDraft } from './domain';
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -18,6 +19,8 @@ const analysisBy = ref('categories'), analysisType = ref('expense'), form = ref(
 const profileName = ref(''), profileError = ref('');
 const expandedGroups = ref({ expense:false, income:false, tags:false });
 const transactionMode = ref('new'), templateSourceName = ref('');
+const formattedAmount = computed(()=>formatAmountInput(form.value.amount));
+const amountWords = computed(()=>amountToWords(form.value.amount));
 const editingTransaction = computed(()=>modal.value==='transaction'&&data.value.transactions.some(t=>t.id===form.value.id));
 const editingTemplate = computed(()=>modal.value==='template'&&data.value.quickTemplates.some(t=>t.id===form.value.id));
 const categoryInUse = id => [...data.value.transactions,...data.value.quickTemplates].some(t=>t.categoryId===id);
@@ -51,7 +54,15 @@ const tagName = id => data.value.tags.find(t=>t.id===id)?.name;
 const shortDate = s => new Date(s+'T12:00:00').toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'});
 const periodLabel = computed(()=>`${shortDate(period.value.start)} – ${shortDate(period.value.end)} / ${period.value.end.slice(0,4)}`);
 const rows = computed(()=>inPeriod.value.filter(t=>(filter.value==='all'||t.type===filter.value)&&(!filterCategory.value||t.categoryId===filterCategory.value)&&(!filterTag.value||t.tagIds.includes(filterTag.value))&&`${t.note} ${category(t.categoryId)?.name} ${t.tagIds.map(tagName).join(' ')}`.toLocaleLowerCase('vi').includes(query.value.toLocaleLowerCase('vi'))).sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id)));
-const groups = computed(()=>{const result=[];for(const t of rows.value){let group=result.find(g=>g.date===t.date);if(!group){group={date:t.date,items:[]};result.push(group);}group.items.push(t);}return result;});
+const groups = computed(()=>{
+ const result=[];
+ for(const t of rows.value){
+  let group=result.find(g=>g.date===t.date);
+  if(!group){group={date:t.date,items:[]};result.push(group);}
+  group.items.push(t);
+ }
+ return result.map(group=>({...group,...totals(group.items)}));
+});
 const chart = computed(()=>{
  const source = analysisBy.value==='categories'?data.value.categories.filter(c=>c.type===analysisType.value):[...data.value.tags,{id:'untagged',name:'Chưa gắn tag'}];
  return source.map((c,i)=>({...c,color:c.color||['#176b51','#f1a65a','#a897cf','#82b5ce','#d58b8b'][i%5],value:inPeriod.value.filter(t=>t.type===analysisType.value&&(analysisBy.value==='categories'?t.categoryId===c.id:c.id==='untagged'?t.tagIds.length===0:t.tagIds.includes(c.id))).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.value>0).sort((a,b)=>b.value-a.value);
@@ -101,6 +112,13 @@ function templateFromTransaction(){
  if(busy.value||!ready.value)return;
  const source=clone(form.value),name=source.note.trim().slice(0,80)||category(source.categoryId)?.name||'Mẫu mới';
  open('template',quickTemplateDraft(source,name));
+}
+function updateAmount(event){
+ const input=event.target;
+ const {digits,formatted,caret}=amountInputState(input.value,input.selectionStart,form.value.amount,event.inputType);
+ form.value.amount=digits;
+ input.value=formatted;
+ input.setSelectionRange(caret,caret);
 }
 function setType(type){form.value.type=type;form.value.categoryId=data.value.categories.find(c=>c.type===type)?.id||'';}
 async function saveForm(){
@@ -205,7 +223,24 @@ onMounted(async()=>{
       <section class="panel recent"><div class="panel-heading"><div><h3>Giao dịch gần đây <span class="count-pill">{{inPeriod.length}}</span></h3><p>Những khoản thu chi trong chu kỳ của bạn</p></div><button class="text-btn" @click="go('transactions')">Xem tất cả <ArrowUpRight :size="15"/></button></div><div v-if="!inPeriod.length" class="empty"><span class="empty-icon"><ArrowLeftRight :size="25"/></span><h3>Một khởi đầu mới cho chiếc ví</h3><p>Ghi lại khoản thu hoặc chi đầu tiên của bạn.</p><button class="btn primary" @click="open('transaction')"><Plus :size="17"/>Thêm giao dịch đầu tiên</button><button v-if="!data.transactions.length" class="text-btn demo-btn" @click="open('demo')">Khám phá với dữ liệu mẫu</button></div><TransactionRow v-for="t in [...inPeriod].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)" :key="t.id" :transaction="t" :category="category(t.categoryId)" :tags="data.tags" :icons="icons" :disabled="busy" :date-label="shortDate(t.date)" @edit="open('transaction',$event)" @copy="copyTransaction"/></section>
      </template>
 
-     <template v-if="page==='transactions'"><section class="panel transaction-panel"><div class="filters"><label class="search"><Search :size="18"/><input v-model="query" placeholder="Tìm ghi chú, danh mục, tag…" aria-label="Tìm giao dịch"></label><select v-model="filter" aria-label="Lọc thu chi"><option value="all">Tất cả thu chi</option><option value="expense">Khoản chi</option><option value="income">Khoản thu</option></select><select v-model="filterCategory" aria-label="Lọc danh mục"><option value="">Mọi danh mục</option><option v-for="c in data.categories" :key="c.id" :value="c.id">{{c.name}} ({{c.type==='income'?'thu':'chi'}})</option></select><select v-model="filterTag" aria-label="Lọc tag"><option value="">Mọi tag</option><option v-for="t in data.tags" :key="t.id" :value="t.id">{{t.name}}</option></select></div><div class="list-summary">{{rows.length}} giao dịch <strong>Thu {{money(totals(rows).income)}} <span>·</span> Chi {{money(totals(rows).expense)}}</strong></div><div v-if="!rows.length" class="empty"><Search :size="32"/><h3>Chưa có giao dịch phù hợp</h3><p>Thử đổi bộ lọc, chu kỳ hoặc thêm giao dịch mới.</p></div><div v-for="g in groups" :key="g.date"><div class="group-date">{{new Date(g.date+'T12:00:00').toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}}</div><TransactionRow v-for="t in g.items" :key="t.id" :transaction="t" :category="category(t.categoryId)" :tags="data.tags" :icons="icons" :disabled="busy" @edit="open('transaction',$event)" @copy="copyTransaction"/></div></section></template>
+     <template v-if="page==='transactions'"><section class="panel transaction-panel"><div class="filters"><label class="search"><Search :size="18"/><input v-model="query" placeholder="Tìm ghi chú, danh mục, tag…" aria-label="Tìm giao dịch"></label><select v-model="filter" aria-label="Lọc thu chi"><option value="all">Tất cả thu chi</option><option value="expense">Khoản chi</option><option value="income">Khoản thu</option></select><select v-model="filterCategory" aria-label="Lọc danh mục"><option value="">Mọi danh mục</option><option v-for="c in data.categories" :key="c.id" :value="c.id">{{c.name}} ({{c.type==='income'?'thu':'chi'}})</option></select><select v-model="filterTag" aria-label="Lọc tag"><option value="">Mọi tag</option><option v-for="t in data.tags" :key="t.id" :value="t.id">{{t.name}}</option></select></div><div class="list-summary">{{rows.length}} giao dịch <strong>Thu {{money(totals(rows).income)}} <span>·</span> Chi {{money(totals(rows).expense)}}</strong></div><div v-if="!rows.length" class="empty"><Search :size="32"/><h3>Chưa có giao dịch phù hợp</h3><p>Thử đổi bộ lọc, chu kỳ hoặc thêm giao dịch mới.</p></div>
+      <details v-for="g in groups" :key="g.date" class="transaction-day">
+       <summary class="group-date">
+        <span class="transaction-day-label">
+         <ChevronRight :size="18" class="transaction-day-chevron" aria-hidden="true"/>
+         <span>
+          <span class="transaction-day-date">{{new Date(g.date+'T12:00:00').toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}}</span>
+          <span class="transaction-day-count">{{g.items.length}} giao dịch</span>
+         </span>
+        </span>
+        <span class="transaction-day-totals">
+         <span class="income-text">Thu {{money(g.income)}}</span>
+         <span class="expense-text">Chi {{money(g.expense)}}</span>
+        </span>
+       </summary>
+       <TransactionRow v-for="t in g.items" :key="t.id" :transaction="t" :category="category(t.categoryId)" :tags="data.tags" :icons="icons" :disabled="busy" @edit="open('transaction',$event)" @copy="copyTransaction"/>
+      </details>
+     </section></template>
 
      <template v-if="page==='categories'">
       <div class="management-grid">
@@ -292,7 +327,8 @@ onMounted(async()=>{
      <p v-if="modal==='transaction'&&transactionMode==='copy'" class="entry-context"><Copy :size="16" aria-hidden="true"/>Bản sao dùng ngày hôm nay. Kiểm tra thông tin rồi lưu để thêm giao dịch mới.</p>
      <p v-if="modal==='transaction'&&transactionMode==='quick'" class="entry-context"><Zap :size="16" aria-hidden="true"/>Từ mẫu “{{templateSourceName}}”, ngày hôm nay. Bạn có thể chỉnh sửa trước khi lưu.</p>
      <div class="type-switch"><button type="button" :class="{selected:form.type==='expense'}" @click="setType('expense')"><ArrowUpRight :size="18"/>Khoản chi</button><button type="button" :class="{selected:form.type==='income'}" @click="setType('income')"><ArrowDownLeft :size="18"/>Khoản thu</button></div>
-     <label for="amount">Số tiền <span>(VND)</span></label><input id="amount" v-model="form.amount" class="amount-input" type="number" inputmode="numeric" step="1" min="1" max="9007199254740991" placeholder="0" required autofocus>
+     <label for="amount">Số tiền <span>(VND)</span></label><input id="amount" :value="formattedAmount" class="amount-input" type="text" inputmode="numeric" autocomplete="off" @input="updateAmount" :aria-describedby="amountWords?'amount-words':undefined" placeholder="0" required autofocus>
+     <p v-if="amountWords" id="amount-words" class="amount-words" aria-live="polite">{{amountWords}}</p>
      <div class="form-columns transaction-fields" :class="{'template-fields':modal==='template'}"><div v-if="modal==='transaction'"><label for="date">Ngày giao dịch</label><input id="date" v-model="form.date" type="date" min="1900-01-01" max="9999-12-31" required></div><div><label for="category">Danh mục</label><select id="category" v-model="form.categoryId" required><option v-for="c in data.categories.filter(x=>x.type===form.type)" :key="c.id" :value="c.id">{{c.name}}</option></select></div></div>
      <label for="note">Ghi chú <span>· không bắt buộc</span></label><textarea id="note" v-model="form.note" maxlength="500" rows="2" placeholder="Khoản này dành cho điều gì?"></textarea><label>Gắn tag <span>· có thể chọn nhiều</span></label><div class="tag-picker"><label v-for="t in data.tags" :key="t.id" :class="{checked:form.tagIds.includes(t.id)}"><input v-model="form.tagIds" type="checkbox" :value="t.id"><Tag :size="13"/>{{t.name}}</label><small v-if="!data.tags.length" class="muted">Tạo tag trong mục Danh mục & tag.</small></div>
     </template>

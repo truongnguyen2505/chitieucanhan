@@ -29,9 +29,13 @@ npm.cmd run preview
 
 - Đặt hoặc đổi tên cá nhân tại Cài đặt → Tên của bạn. Tên và chữ cái đại diện hiển thị trên thanh điều hướng; trang Tổng quan chào theo tên. Tên được lưu cùng sổ, có trong sao lưu JSON và được xóa khi reset. Để trống tên để dùng “Sổ của tôi”.
 - Tạo, sửa, xóa thu/chi: ngày, số tiền, ghi chú, danh mục và nhiều tag.
-- Tạo, sửa danh mục thu/chi và tag. Không xóa danh mục đang có giao dịch; không đổi loại của danh mục đã dùng. Xóa tag gỡ tag khỏi giao dịch.
+- Ghi nhanh: tạo/sửa/xóa mẫu khoản thu hoặc chi ở Tổng quan/Giao dịch; chọn mẫu để điền sẵn biểu mẫu với ngày hôm nay, kiểm tra rồi lưu. Có thể tạo mẫu từ nội dung biểu mẫu giao dịch. Mẫu lưu cùng sổ và bản sao lưu JSON, không tính vào tổng thu/chi.
+- Sao chép giao dịch bằng nút cạnh từng dòng hoặc trong màn hình sửa. Bản sao có ID mới, mặc định ngày hôm nay; giữ số tiền, loại, danh mục, ghi chú và tag. Có thể sửa hoặc hủy trước khi lưu. Giao dịch gốc giữ nguyên.
+- Tạo, sửa danh mục thu/chi và tag. Không xóa hoặc đổi loại danh mục đang được dùng trong giao dịch hay mẫu ghi nhanh. Xóa tag gỡ tag khỏi cả giao dịch và mẫu.
 - Chu kỳ lặp theo ngày bắt đầu 1–31. Ngày 25 nghĩa là 25 tháng này đến hết 24 tháng sau. Khi tháng thiếu ngày bắt đầu, lấy ngày cuối tháng. Chuyển chu kỳ trước/sau; về kỳ hiện tại.
 - Dashboard thu, chi, số dư trong kỳ, phân bổ theo danh mục hoặc tag cho cả thu lẫn chi, biểu đồ theo ngày.
+- So sánh giữa các kỳ trên Tổng quan: đối chiếu kỳ đang xem với kỳ liền trước về thu nhập, chi tiêu và số dư; xem chênh lệch tiền, tỷ lệ thay đổi, danh mục chi tăng/giảm nhiều nhất. Mở “So sánh theo danh mục” để xem chi tiết thu hoặc chi và biểu đồ hai kỳ.
+- Chọn “Cả kỳ” để so toàn bộ hai chu kỳ hoặc “Cùng số ngày” để so cùng số ngày đầu kỳ (đến tối đa hôm nay nếu đang xem kỳ hiện tại, giới hạn theo kỳ ngắn hơn). Khoảng ngày thực tế luôn được hiển thị. Kỳ tương lai chỉ hỗ trợ “Cả kỳ”. Không tính tỷ lệ phần trăm khi mốc kỳ trước bằng 0 hoặc âm; số dư vẫn là thu trừ chi trong từng kỳ.
 - Tìm và lọc giao dịch theo nội dung, loại, danh mục và tag trong chu kỳ đang xem.
 - Sao lưu/khôi phục JSON có kiểm tra định dạng và xác nhận trước khi thay thế dữ liệu.
 - Sổ trống khi bắt đầu; dữ liệu mẫu chỉ được thêm khi người dùng chọn.

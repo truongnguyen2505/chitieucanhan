@@ -34,6 +34,9 @@ Hỗ trợ `ETag` cho GET/PUT và `If-Match` trên PUT để chống ghi đè gi
     { "id": "salary", "name": "Lương", "type": "income", "color": "#5aab8c", "icon": "BriefcaseBusiness" }
   ],
   "tags": [{ "id": "personal", "name": "Cá nhân" }],
+  "quickTemplates": [
+    { "id": "coffee-template", "name": "Cà phê buổi sáng", "type": "expense", "amount": 25000, "note": "Cà phê", "categoryId": "food", "tagIds": ["personal"] }
+  ],
   "transactions": [
     { "id": "unique-uuid", "date": "2026-10-29", "type": "expense", "amount": 85000, "note": "Bữa trưa", "categoryId": "food", "tagIds": ["personal"] }
   ]
@@ -43,6 +46,10 @@ Hỗ trợ `ETag` cho GET/PUT và `If-Match` trên PUT để chống ghi đè gi
 Ngày là ngày lịch `YYYY-MM-DD`, không phải UTC timestamp; không tự chuyển múi giờ. `amount` là số nguyên VND dương trong giới hạn safe integer JavaScript. `type` là `income` hoặc `expense`; category phải tồn tại và cùng type với transaction; mọi tagId phải tồn tại. ID phải duy nhất trong từng collection. `name` tối đa 80 ký tự, `note` tối đa 500 ký tự. Client kiểm tra dữ liệu nhưng server vẫn phải tự kiểm tra.
 
 `settings.displayName` là tên hiển thị cá nhân, kiểu chuỗi, tối đa 80 ký tự. Client loại bỏ khoảng trắng ở đầu và cuối; chuỗi rỗng dùng tên mặc định. Dữ liệu phiên bản 1 cũ có thể thiếu trường này và được đọc thành chuỗi rỗng. Tên được lưu cùng sổ, đi kèm bản sao lưu JSON và được xóa khi reset dữ liệu.
+
+`quickTemplates` là danh sách mẫu ghi nhanh, mặc định `[]` khi đọc sổ hoặc bản sao lưu phiên bản 1 cũ thiếu trường này. Mỗi mẫu gồm `id`, `name` (1–80 ký tự sau khi bỏ khoảng trắng đầu/cuối), `type`, `amount`, `note`, `categoryId`, `tagIds`; các trường giao dịch dùng cùng quy tắc kiểm tra như trên. ID phải duy nhất trong danh sách mẫu. Mẫu không cần ngày, không tính vào tổng thu/chi. Backend phải lưu và trả lại danh sách này cùng sổ, bao gồm khi PUT/reset; nếu bỏ trường này khi trả GET thì các mẫu sẽ không còn hiển thị trên client.
+
+Khi dùng mẫu hoặc sao chép giao dịch, client tạo bản nháp với ID mới và ngày hôm nay theo lịch địa phương, giữ loại thu/chi, số tiền, ghi chú, danh mục và tag. Chỉ khi người dùng lưu, bản nháp mới được thêm vào `transactions`. Tạo/sửa/xóa mẫu không sửa giao dịch đã ghi. Không cho xóa hoặc đổi loại danh mục đang được dùng trong giao dịch hay mẫu; xóa tag gỡ tham chiếu khỏi cả hai danh sách.
 
 ## Chuyển dữ liệu local sang DB
 

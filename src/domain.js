@@ -22,22 +22,35 @@ export function freshData() {
     {id:'salary',name:'Lương',type:'income',color:'#5aab8c',icon:'BriefcaseBusiness'},
     {id:'repayment',name:'Thu nợ',type:'income',color:'#79a9bb',icon:'Wallet'},
     {id:'extra',name:'Thu khác',type:'income',color:'#bda26c',icon:'CircleDollarSign'}
-  ], transactions: [] };
+  ], transactions: [], quickTemplates: [] };
 }
 export function validateData(raw) {
   const fail = () => { throw new Error('Dữ liệu không đúng định dạng sổ thu chi phiên bản 1.'); };
   if (!raw || raw.version !== 1 || !Number.isInteger(raw.settings?.startDay) || raw.settings.startDay < 1 || raw.settings.startDay > 31) fail();
   if (raw.settings.displayName !== undefined && (typeof raw.settings.displayName !== 'string' || raw.settings.displayName.length > 80)) fail();
   if (!['categories','tags','transactions'].every(k => Array.isArray(raw[k]))) fail();
+  const quickTemplates = raw.quickTemplates === undefined ? [] : raw.quickTemplates;
+  if (!Array.isArray(quickTemplates)) fail();
   const text = (v,max=80) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   for (const key of ['categories','tags','transactions']) {
     if (new Set(raw[key].map(x=>x?.id)).size !== raw[key].length || raw[key].some(x=>!text(x?.id,100))) fail();
   }
+  if (new Set(quickTemplates.map(t=>t?.id)).size !== quickTemplates.length || quickTemplates.some(t=>!text(t?.id,100))) fail();
   if(raw.tags.some(t=>!text(t.name))) fail();
   if(raw.categories.some(c=>!text(c.name)||!['expense','income'].includes(c.type)||!/^#[0-9a-f]{6}$/i.test(c.color)||!text(c.icon))) fail();
-  if(raw.transactions.some(t=> !Number.isSafeInteger(t.amount)||t.amount<=0||!['expense','income'].includes(t.type)||typeof t.note!=='string'||t.note.length>500||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||Number.isNaN(Date.parse(t.date+'T12:00:00'))||dateKey(new Date(t.date+'T12:00:00'))!==t.date||!raw.categories.some(c=>c.id===t.categoryId&&c.type===t.type)||!Array.isArray(t.tagIds)||new Set(t.tagIds).size!==t.tagIds.length||t.tagIds.some(id=>!raw.tags.some(tag=>tag.id===id)))) fail();
+  const validFields = t => Number.isSafeInteger(t.amount)&&t.amount>0&&['expense','income'].includes(t.type)&&typeof t.note==='string'&&t.note.length<=500&&raw.categories.some(c=>c.id===t.categoryId&&c.type===t.type)&&Array.isArray(t.tagIds)&&new Set(t.tagIds).size===t.tagIds.length&&t.tagIds.every(id=>raw.tags.some(tag=>tag.id===id));
+  if(raw.transactions.some(t=> !validFields(t)||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||Number.isNaN(Date.parse(t.date+'T12:00:00'))||dateKey(new Date(t.date+'T12:00:00'))!==t.date)) fail();
+  if(quickTemplates.some(t=>!text(t.name)||!validFields(t))) fail();
   const valid = structuredClone(raw);
   valid.settings.displayName = (raw.settings.displayName ?? '').trim();
+  valid.quickTemplates = quickTemplates.map(t=>({...structuredClone(t),name:t.name.trim()}));
   return valid;
+}
+const transactionFields = source => ({ type:source.type, amount:source.amount, note:source.note, categoryId:source.categoryId, tagIds:[...source.tagIds] });
+export function transactionDraft(source, date = dateKey()) {
+  return { id:uid(), date, ...transactionFields(source) };
+}
+export function quickTemplateDraft(source, name) {
+  return { id:uid(), name, ...transactionFields(source) };
 }
 export function totals(rows) { const income = rows.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0); const expense = rows.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0); return {income,expense,balance:income-expense}; }

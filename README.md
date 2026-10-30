@@ -88,3 +88,11 @@ Tham khảo: [Apple: thêm trang web vào màn hình chính](https://support.app
 Mỗi người có thể nhập **Tên dưới icon** trong **Thêm vào màn hình chính**, chọn **Lưu tên trước khi cài** rồi thực hiện cài đặt. Trang tải lại và tự mở tiếp hướng dẫn với tên đã chọn. Tên tối đa 40 ký tự; iOS cũng cho sửa tên ở màn hình xác nhận thêm icon. Tên của icon đã cài được hệ điều hành/trình duyệt quản lý, không bảo đảm đổi ngay khi sửa tên trên trang.
 
 Tên được giữ trong tham số `app_name` của đường dẫn mở ứng dụng và manifest riêng; `name`/`short_name` và tiêu đề Apple dùng cùng tên. Danh tính `id`, phạm vi `scope`, icon và dữ liệu sổ không thay đổi. Không lưu tên icon vào dữ liệu giao dịch. HTML/manifest có tên riêng dùng `Cache-Control: private, no-store` để không dùng nhầm tên giữa các đường dẫn. Vite dev, preview và Worker cục bộ đều hỗ trợ cách đặt tên này.
+
+## Nhắc nhở
+
+Mở **Cài đặt → Nhắc nhở → Thêm nhắc nhở**. Ví dụ: nhập “Mặc đồng phục công ty”, chọn **Hằng tháng — theo thứ**, **Đầu tiên**, **Thứ Hai** và giờ **08:00**.
+
+Trang chính hiển thị cảnh báo đỏ trong **24 giờ trước thời điểm nhắc**, theo giờ địa phương của thiết bị. Cảnh báo được kiểm tra khi mở trang, khi quay lại app và mỗi 30 giây khi app đang chạy. Nhấn **Đã xong lần này** để ẩn đúng lần đó; lịch lặp tiếp tục cho lần sau. Có thể sửa, tạm dừng/bật lại và xóa trong phần quản lý.
+
+Hỗ trợ lịch một lần, hằng ngày, hằng tuần, ngày cố định hằng tháng và thứ trong tháng (lần đầu đến lần thứ năm hoặc lần cuối). Ngày cố định vượt số ngày của tháng được chuyển về ngày cuối tháng; lịch lần thứ năm bỏ qua tháng không có lần đó. Nhắc nhở được lưu cùng sổ, đi kèm sao lưu/khôi phục JSON và được xóa khi reset. Sổ cũ tự có danh sách nhắc nhở trống.

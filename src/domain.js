@@ -1,3 +1,4 @@
+import { isValidReminder } from './reminders.js';
 export const dateKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const uid = () => globalThis.crypto.randomUUID?.() || '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (Number(c) ^ (globalThis.crypto.getRandomValues(new Uint8Array(1))[0] & 15) >> (Number(c) / 4)).toString(16));
 export const money = n => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
@@ -22,7 +23,7 @@ export function freshData() {
     {id:'salary',name:'Lương',type:'income',color:'#5aab8c',icon:'BriefcaseBusiness'},
     {id:'repayment',name:'Thu nợ',type:'income',color:'#79a9bb',icon:'Wallet'},
     {id:'extra',name:'Thu khác',type:'income',color:'#bda26c',icon:'CircleDollarSign'}
-  ], transactions: [], quickTemplates: [] };
+  ], transactions: [], quickTemplates: [], reminders: [] };
 }
 export function validateData(raw) {
   const fail = () => { throw new Error('Dữ liệu không đúng định dạng sổ thu chi phiên bản 1.'); };
@@ -31,6 +32,8 @@ export function validateData(raw) {
   if (!['categories','tags','transactions'].every(k => Array.isArray(raw[k]))) fail();
   const quickTemplates = raw.quickTemplates === undefined ? [] : raw.quickTemplates;
   if (!Array.isArray(quickTemplates)) fail();
+  const reminders = raw.reminders === undefined ? [] : raw.reminders;
+  if (!Array.isArray(reminders) || reminders.some(item=>!isValidReminder(item)) || new Set(reminders.map(item=>item.id)).size!==reminders.length) fail();
   const text = (v,max=80) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   for (const key of ['categories','tags','transactions']) {
     if (new Set(raw[key].map(x=>x?.id)).size !== raw[key].length || raw[key].some(x=>!text(x?.id,100))) fail();
@@ -44,6 +47,7 @@ export function validateData(raw) {
   const valid = structuredClone(raw);
   valid.settings.displayName = (raw.settings.displayName ?? '').trim();
   valid.quickTemplates = quickTemplates.map(t=>({...structuredClone(t),name:t.name.trim()}));
+  valid.reminders = reminders.map(item=>({...structuredClone(item),title:item.title.trim(),completedOccurrence:item.completedOccurrence??null}));
   return valid;
 }
 const transactionFields = source => ({ type:source.type, amount:source.amount, note:source.note, categoryId:source.categoryId, tagIds:[...source.tagIds] });

@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle, UserRound, Smartphone, Copy, Zap } from 'lucide-vue-next';
+import { Leaf, LayoutDashboard, ArrowLeftRight, Shapes, Settings2, Plus, ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownLeft, X, Search, Pencil, Trash2, Download, Upload, Tag, Check, Wallet, Utensils, ShoppingBag, Car, House, BriefcaseBusiness, CircleDollarSign, TrendingUp, CalendarDays, LoaderCircle, UserRound, Smartphone, Copy, Zap, RefreshCw, Bell } from 'lucide-vue-next';
 import { repository } from './repository';
 import InstallApp from './InstallApp.vue';
 import QuickEntries from './QuickEntries.vue';
 import TransactionRow from './TransactionRow.vue';
 import PeriodComparison from './PeriodComparison.vue';
+import ReminderAlerts from './ReminderAlerts.vue';
+import ReminderManager from './ReminderManager.vue';
 import { formatAmountInput, amountInputState, amountToWords } from './amount-input.js';
 import { createInstallManager } from './install.js';
 import { freshData, dateKey, cycleFor, money, uid, totals, validateData, transactionDraft, quickTemplateDraft } from './domain';
@@ -29,6 +31,14 @@ const installManager = createInstallManager(window, state => { installState.valu
 installState.value = installManager.getState();
 onUnmounted(() => installManager.dispose());
 const requestInstall = () => installManager.install();
+const reminderNow = ref(new Date());
+let reminderClock;
+function refreshReminderTime(){reminderNow.value=new Date();}
+onUnmounted(()=>{
+ window.clearInterval(reminderClock);
+ window.removeEventListener('focus',refreshReminderTime);
+ document.removeEventListener('visibilitychange',refreshReminderTime);
+});
 const displayName = computed(()=>data.value.settings.displayName || 'Sổ của tôi');
 const avatarInitial = computed(()=>Array.from(data.value.settings.displayName || 'T')[0].toLocaleUpperCase('vi-VN'));
 const nav = [{id:'dashboard',label:'Tổng quan',icon:LayoutDashboard},{id:'transactions',label:'Giao dịch',icon:ArrowLeftRight},{id:'categories',label:'Danh mục & tag',icon:Shapes},{id:'settings',label:'Cài đặt',icon:Settings2}];
@@ -36,6 +46,8 @@ const settingsActions = [
  {id:'install',label:'Thêm vào màn hình chính',icon:Smartphone},
  {id:'profile',label:'Tên của bạn',icon:UserRound},
  {id:'cycle',label:'Chu kỳ tính thu chi',icon:CalendarDays},
+ {id:'reminders',label:'Nhắc nhở',icon:Bell},
+ {id:'reload',label:'Tải lại ứng dụng',icon:RefreshCw},
  {id:'backup',label:'Sao lưu dữ liệu',icon:Download},
  {id:'restore',label:'Khôi phục dữ liệu',icon:Upload},
  {id:'reset',label:'Reset dữ liệu',icon:Trash2}
@@ -43,6 +55,7 @@ const settingsActions = [
 const modalTitle = computed(()=>{
  if(modal.value==='transaction')return editingTransaction.value?'Sửa giao dịch':transactionMode.value==='copy'?'Sao chép giao dịch':transactionMode.value==='quick'?'Ghi nhanh từ mẫu':'Thêm giao dịch';
  if(modal.value==='template')return editingTemplate.value?'Sửa mẫu ghi nhanh':'Tạo mẫu ghi nhanh';
+ if(modal.value==='reminders')return 'Nhắc nhở';
  if(modal.value==='delete')return 'Xóa '+form.value.name;
  return {install:'Thêm vào màn hình chính',profile:'Tên của bạn',cycle:'Chu kỳ tính thu chi',backup:'Sao lưu dữ liệu',restore:'Khôi phục dữ liệu',category:'Danh mục thu chi',tag:'Tag chi tiêu',import:'Xác nhận khôi phục dữ liệu',reset:'Xóa toàn bộ dữ liệu?',demo:'Khám phá sổ mẫu'}[modal.value]||'';
 });
@@ -156,6 +169,17 @@ async function deleteItem(){const next=clone(data.value),{kind,id}=form.value;
  if(kind==='tags')[...next.transactions,...next.quickTemplates].forEach(t=>t.tagIds=t.tagIds.filter(x=>x!==id));
  if(await commit(next)){modal.value=null;toast('Đã xóa');}}
 function syncSettings(){cycleDay.value=data.value.settings.startDay;profileName.value=data.value.settings.displayName;profileError.value='';}
+async function saveReminders(reminders,message='Đã cập nhật nhắc nhở'){
+ if(busy.value||!ready.value)return false;
+ formError.value='';
+ const next=clone(data.value);next.reminders=clone(reminders);
+ if(await commit(next)){refreshReminderTime();toast(message);return true;}
+ return false;
+}
+async function completeReminder({id,occurrence}){
+ if(busy.value||!ready.value)return;
+ await saveReminders(data.value.reminders.map(item=>item.id===id?{...item,completedOccurrence:occurrence}:item),'Đã hoàn thành nhắc nhở lần này');
+}
 async function saveProfile(){
  const name=profileName.value.trim();profileError.value='';
  if(name.length>80){profileError.value='Tên của bạn không được dài quá 80 ký tự.';return;}
@@ -185,6 +209,10 @@ async function demo(){const next=clone(data.value);const p=period.value;const en
  if(await commit(next)){modal.value=null;toast('Đã thêm 8 giao dịch mẫu vào chu kỳ đang xem');}}
 function go(id){page.value=id;query.value='';filter.value='all';filterTag.value='';filterCategory.value='';}
 onMounted(async()=>{
+ refreshReminderTime();
+ reminderClock=window.setInterval(refreshReminderTime,30000);
+ window.addEventListener('focus',refreshReminderTime);
+ document.addEventListener('visibilitychange',refreshReminderTime);
  try {
   data.value=await repository.load();syncSettings();ready.value=true;
   if(window.location.hash==='#install') {
@@ -211,6 +239,7 @@ onMounted(async()=>{
     <div v-if="fatal" class="fatal" role="alert"><h2>Chưa thể mở sổ</h2><p>{{fatal}}</p><button v-if="repository.raw" class="btn" @click="download(repository.raw()||'null','la-du-lieu-goc.json')">Xuất dữ liệu gốc</button><button class="btn" @click="retry">Thử lại</button></div>
     <template v-else-if="ready">
      <div class="page-heading"><div><div class="eyebrow">{{page==='dashboard'&&data.settings.displayName?'Xin chào, '+data.settings.displayName+'!':'MỖI NGÀY MỘT CHÚT, TÀI CHÍNH TỐT HƠN'}}</div><h1>{{page==='dashboard'?'Bức tranh tài chính':page==='transactions'?'Nhật ký thu chi':page==='categories'?'Sắp xếp theo cách của bạn':'Thiết lập sổ của bạn'}}<span v-if="page==='dashboard'" class="heading-spark">✳</span></h1><p>{{page==='dashboard'?'Biết tiền đi đâu, để chủ động hơn mỗi ngày.':page==='transactions'?'Từng khoản nhỏ, một bức tranh rõ ràng.':page==='categories'?'Danh mục rõ ràng, theo dõi nhẹ nhàng.':'Chọn chức năng bạn muốn thực hiện.'}}</p></div><button v-if="page!=='settings'" type="button" class="btn primary add-main" aria-label="Thêm giao dịch" @click="open('transaction')"><Plus :size="19"/><span class="add-main-label">Thêm giao dịch</span></button></div>
+     <ReminderAlerts v-if="page==='dashboard'" :reminders="data.reminders" :now="reminderNow" :disabled="busy" @complete="completeReminder" @manage="open('reminders')"/>
      <button v-if="page==='dashboard'&&!installState.isInstalled" type="button" class="home-screen-entry" aria-haspopup="dialog" @click="open('install')"><Smartphone :size="22" aria-hidden="true"/><span><strong>Thêm vào màn hình chính</strong><small>Mở sổ nhanh bằng icon trên điện thoại</small></span><ChevronRight :size="18" aria-hidden="true"/></button>
      <div v-if="page==='dashboard'||page==='transactions'" class="period-toolbar"><div class="period-control"><button aria-label="Chu kỳ trước" @click="offset--"><ChevronLeft :size="17"/></button><CalendarDays :size="17"/><strong>{{periodLabel}}</strong><button aria-label="Chu kỳ sau" @click="offset++"><ChevronRight :size="17"/></button></div><button v-if="offset!==0" class="text-btn" @click="offset=0">Về kỳ hiện tại</button><span class="period-hint">Chu kỳ bắt đầu ngày {{data.settings.startDay}} hằng tháng <button aria-label="Đổi chu kỳ" @click="open('cycle')"><Settings2 :size="14"/></button></span></div>
 
@@ -277,7 +306,7 @@ onMounted(async()=>{
 
      <template v-if="page==='settings'">
       <section class="panel settings-menu" aria-label="Các chức năng cài đặt">
-       <button v-for="action in settingsActions" :key="action.id" type="button" :class="['settings-action',{danger:action.id==='reset'}]" :disabled="busy" aria-haspopup="dialog" @click="open(action.id)">
+       <button v-for="action in settingsActions" :key="action.id" type="button" :class="['settings-action',{danger:action.id==='reset'}]" :disabled="busy" :aria-haspopup="action.id==='reload'?undefined:'dialog'" @click="action.id==='reload'?retry():open(action.id)">
         <span class="settings-action-icon"><component :is="action.icon" :size="21" aria-hidden="true"/></span>
         <span class="settings-action-label">{{action.label}}</span>
         <ChevronRight :size="18" class="settings-action-chevron" aria-hidden="true"/>
@@ -293,6 +322,7 @@ onMounted(async()=>{
   <input ref="fileInput" type="file" accept=".json,application/json" hidden @change="importData">
   <div v-if="modal" class="modal-overlay" @click.self="!busy&&(modal=null)" @keydown.esc="!busy&&(modal=null)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"><div class="modal-header"><h2 id="modal-title">{{modalTitle}}</h2><button class="icon-btn" :disabled="busy" aria-label="Đóng" @click="modal=null"><X :size="22"/></button></div>
    <InstallApp v-if="modal==='install'" :state="installState" @install="requestInstall" @close="modal=null"/>
+   <ReminderManager v-else-if="modal==='reminders'" :reminders="data.reminders" :now="reminderNow" :save="saveReminders" :disabled="busy" :error="formError"/>
    <form v-else-if="modal==='profile'" class="settings-dialog" @submit.prevent="saveProfile">
     <p class="dialog-copy">Đặt tên để cá nhân hóa không gian thu chi của bạn.</p>
     <label for="display-name">Tên hiển thị</label>
@@ -310,8 +340,8 @@ onMounted(async()=>{
     <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="submit" class="btn primary" :disabled="busy"><Check :size="17"/>{{busy?'Đang lưu…':'Lưu chu kỳ'}}</button></div>
    </form>
    <div v-else-if="modal==='backup'" class="settings-dialog">
-    <p class="dialog-copy">Tải bản sao lưu JSON gồm giao dịch, mẫu ghi nhanh, danh mục, tag, tên cá nhân và chu kỳ. Bạn có thể dùng file này để khôi phục sổ sau.</p>
-    <div class="data-stats"><span><strong>{{data.transactions.length}}</strong> giao dịch</span><span><strong>{{data.quickTemplates.length}}</strong> mẫu ghi nhanh</span><span><strong>{{data.categories.length}}</strong> danh mục</span><span><strong>{{data.tags.length}}</strong> tag</span></div>
+    <p class="dialog-copy">Tải bản sao lưu JSON gồm giao dịch, mẫu ghi nhanh, nhắc nhở, danh mục, tag, tên cá nhân và chu kỳ. Bạn có thể dùng file này để khôi phục sổ sau.</p>
+    <div class="data-stats"><span><strong>{{data.transactions.length}}</strong> giao dịch</span><span><strong>{{data.quickTemplates.length}}</strong> mẫu ghi nhanh</span><span><strong>{{data.reminders.length}}</strong> nhắc nhở</span><span><strong>{{data.categories.length}}</strong> danh mục</span><span><strong>{{data.tags.length}}</strong> tag</span></div>
     <div class="modal-actions"><button type="button" class="btn" :disabled="busy" @click="modal=null">Đóng</button><button type="button" class="btn primary" :disabled="busy" @click="exportData"><Download :size="17"/>Tải bản sao lưu</button></div>
    </div>
    <div v-else-if="modal==='restore'" class="settings-dialog">
@@ -348,8 +378,8 @@ onMounted(async()=>{
     <div v-if="modal==='transaction'" class="entry-tools"><button v-if="editingTransaction" type="button" class="text-btn" :disabled="busy" @click="copyTransaction(form)"><Copy :size="16"/>Sao chép giao dịch</button><button type="button" class="text-btn" :disabled="busy" @click="templateFromTransaction"><Zap :size="16"/>Tạo mẫu từ nội dung này</button></div>
     <p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button v-if="editingTransaction||editingTemplate" type="button" class="btn danger" :disabled="busy" @click="open('delete',{kind:editingTemplate?'quickTemplates':'transactions',id:form.id,name:editingTemplate?'mẫu '+form.name:'giao dịch này'})"><Trash2 :size="17"/>Xóa</button><button type="button" class="btn" :disabled="busy" @click="modal=null">Hủy</button><button type="submit" class="btn primary" :disabled="busy">{{busy?'Đang lưu…':'Lưu '+(modal==='transaction'?'giao dịch':modal==='template'?'mẫu':modal==='tag'?'tag':'danh mục')}}</button></div>
    </form>
-   <template v-else-if="modal==='reset'"><p class="dialog-copy">Bạn sắp xóa <strong>toàn bộ {{data.transactions.length}} giao dịch, {{data.quickTemplates.length}} mẫu ghi nhanh, danh mục, tag, tên cá nhân và chu kỳ đã lưu</strong>{{repository.raw?' của sổ thu chi trên trình duyệt này':' của sổ thu chi trên máy chủ'}}. Hành động này không thể hoàn tác nếu bạn chưa có bản sao lưu.</p><p class="dialog-copy">Sổ sẽ trở về trạng thái ban đầu với danh mục và tag mặc định, không có giao dịch. {{repository.raw?'Dữ liệu đã lưu của sổ sẽ được xóa khỏi bộ nhớ trình duyệt.':'Dữ liệu máy chủ sẽ được thay thế bằng sổ mặc định.'}}</p><button class="btn" :disabled="busy" @click="exportData"><Download :size="17"/>Sao lưu trước khi xóa</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="resetData">{{busy?'Đang xóa…':'Xóa toàn bộ dữ liệu'}}</button></div></template><template v-else-if="modal==='delete'"><p class="dialog-copy">{{form.kind==='tags'?'Tag sẽ được gỡ khỏi các giao dịch và mẫu ghi nhanh có gắn tag này.':'Bạn muốn xóa mục này khỏi sổ thu chi?'}}</p><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="deleteItem">Xác nhận xóa</button></div></template>
-   <template v-else-if="modal==='import'"><p class="dialog-copy">File <strong>{{form.name}}</strong> có {{form.parsed.transactions.length}} giao dịch và {{form.parsed.quickTemplates.length}} mẫu ghi nhanh. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại. Bạn nên xuất bản sao lưu trước.</p><button class="btn" @click="exportData"><Download :size="17"/>Sao lưu dữ liệu hiện tại</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="confirmImport">Thay thế và khôi phục</button></div></template>
+   <template v-else-if="modal==='reset'"><p class="dialog-copy">Bạn sắp xóa <strong>toàn bộ {{data.transactions.length}} giao dịch, {{data.quickTemplates.length}} mẫu ghi nhanh, {{data.reminders.length}} nhắc nhở, danh mục, tag, tên cá nhân và chu kỳ đã lưu</strong>{{repository.raw?' của sổ thu chi trên trình duyệt này':' của sổ thu chi trên máy chủ'}}. Hành động này không thể hoàn tác nếu bạn chưa có bản sao lưu.</p><p class="dialog-copy">Sổ sẽ trở về trạng thái ban đầu với danh mục và tag mặc định, không có giao dịch hay nhắc nhở. {{repository.raw?'Dữ liệu đã lưu của sổ sẽ được xóa khỏi bộ nhớ trình duyệt.':'Dữ liệu máy chủ sẽ được thay thế bằng sổ mặc định.'}}</p><button class="btn" :disabled="busy" @click="exportData"><Download :size="17"/>Sao lưu trước khi xóa</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="resetData">{{busy?'Đang xóa…':'Xóa toàn bộ dữ liệu'}}</button></div></template><template v-else-if="modal==='delete'"><p class="dialog-copy">{{form.kind==='tags'?'Tag sẽ được gỡ khỏi các giao dịch và mẫu ghi nhanh có gắn tag này.':'Bạn muốn xóa mục này khỏi sổ thu chi?'}}</p><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn danger" :disabled="busy" @click="deleteItem">Xác nhận xóa</button></div></template>
+   <template v-else-if="modal==='import'"><p class="dialog-copy">File <strong>{{form.name}}</strong> có {{form.parsed.transactions.length}} giao dịch và {{form.parsed.quickTemplates.length}} mẫu ghi nhanh và {{form.parsed.reminders.length}} nhắc nhở. Khôi phục sẽ thay thế toàn bộ dữ liệu hiện tại. Bạn nên xuất bản sao lưu trước.</p><button class="btn" @click="exportData"><Download :size="17"/>Sao lưu dữ liệu hiện tại</button><p v-if="formError" class="form-error" role="alert">{{formError}}</p><div class="modal-actions"><button class="btn" :disabled="busy" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="confirmImport">Thay thế và khôi phục</button></div></template>
    <template v-else><p class="dialog-copy">Thêm 8 giao dịch minh họa vào chu kỳ đang xem để trải nghiệm dashboard. Bạn có thể sửa hoặc xóa từng giao dịch sau đó.</p><div class="modal-actions"><button class="btn" @click="modal=null">Hủy</button><button class="btn primary" :disabled="busy" @click="demo">Thêm dữ liệu mẫu</button></div></template>
   </section></div>
  </div>

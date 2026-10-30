@@ -37,6 +37,9 @@ Hỗ trợ `ETag` cho GET/PUT và `If-Match` trên PUT để chống ghi đè gi
   "quickTemplates": [
     { "id": "coffee-template", "name": "Cà phê buổi sáng", "type": "expense", "amount": 25000, "note": "Cà phê", "categoryId": "food", "tagIds": ["personal"] }
   ],
+  "reminders": [
+    { "id": "uniform", "title": "Mặc đồng phục công ty", "type": "monthly-weekday", "weekday": 1, "ordinal": 1, "time": "08:00", "enabled": true, "completedOccurrence": null }
+  ],
   "transactions": [
     { "id": "unique-uuid", "date": "2026-10-29", "type": "expense", "amount": 85000, "note": "Bữa trưa", "categoryId": "food", "tagIds": ["personal"] }
   ]
@@ -59,3 +62,14 @@ Khi dùng mẫu hoặc sao chép giao dịch, client tạo bản nháp với ID 
 4. Kiểm tra lại số giao dịch, tổng thu/chi, danh mục và tag trước khi ngừng dùng sổ local.
 
 Không có việc âm thầm đẩy dữ liệu local lên server. Import thay thế toàn bộ sổ nên cần sao lưu sổ server trước khi nhập.
+
+## Nhắc nhở
+
+Collection `reminders` mặc định `[]` khi đọc sổ/backup cũ. Mỗi item gồm `id` (1–100 ký tự, duy nhất), `title` (1–160 ký tự), `enabled` (boolean), `time` (`HH:mm` 00:00–23:59), `type` và `completedOccurrence` (null hoặc `YYYY-MM-DDTHH:mm` theo giờ địa phương).
+- `once`: thêm `date` (`YYYY-MM-DD`, ngày hợp lệ từ năm 1900).
+- `daily`: không cần trường lịch khác.
+- `weekly`: thêm `weekday` (0=Chủ nhật đến 6=Thứ Bảy).
+- `monthly-date`: thêm `monthDay` (1–31); tháng thiếu ngày dùng ngày cuối tháng.
+- `monthly-weekday`: thêm `weekday` và `ordinal` (1–5 hoặc -1 cho lần cuối); bỏ qua tháng thiếu lần thứ năm.
+
+Backend cần giữ/trả lại collection này khi GET/PUT. Nhắc nhở không tạo giao dịch hoặc thay đổi tổng thu chi. Hoàn thành chỉ ghi khóa của lần nhắc vào `completedOccurrence`, không tắt lịch lặp. Cảnh báo phía client chỉ hiện cho lần chưa hoàn thành trong 24 giờ tới.
